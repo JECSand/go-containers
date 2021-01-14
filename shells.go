@@ -13,13 +13,14 @@ Copyright 2021 John Connor Sanders
 package containers
 
 import (
-	"fmt"
 	"github.com/gofrs/uuid"
 	"io/ioutil"
 	"log"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // GenerateUuid
@@ -32,13 +33,97 @@ func GenerateUuid() (string, error) {
 	return uuId.String(), nil
 }
 
+// createYMLDirs
+func createYMLDirs() error {
+	_, err := os.Stat("inits")
+	if os.IsNotExist(err) {
+		errDir := os.MkdirAll("inits", 0755)
+		if errDir != nil {
+			log.Fatal(errDir.Error())
+			return errDir
+		}
+	}
+	return nil
+}
+
+// cleanBashFile
+func cleanBashFile(fName string) error {
+	err := os.Remove(fName)
+	if err != nil {
+		log.Fatal(err.Error())
+		return err
+	}
+	return nil
+}
+
+// createBashFile
+func createBashFile(fType string, contents string) (string, error) {
+	err := createYMLDirs()
+	if err != nil {
+		log.Fatal(err.Error())
+		return "", err
+	}
+	fName, err := GenerateUuid()
+	if err != nil {
+		log.Fatal(err.Error())
+		return fName, err
+	}
+	if fType == "INIT" {
+		fName = "inits/" + fName + ".sh"
+	}
+	f, err := os.Create(fName)
+	if err != nil {
+		log.Fatal(err.Error())
+		return fName, nil
+	}
+	defer f.Close()
+	_, err = f.WriteString(contents)
+	if err != nil {
+		log.Fatal(err.Error())
+		return fName, nil
+	}
+	return fName, nil
+}
+
+// buildBashCommand
+func buildBashCommand(fName string) *exec.Cmd {
+	return exec.Command("/bin/sh", fName)
+}
+
+// buildInitStr
+func (cm *CMD) buildInitStr() string {
+	initStr := ""
+	for _, c := range cm.Args {
+		initStr = initStr + " " + c
+	}
+	return initStr
+}
+
+// buildInitCmd
+func (cm *CMD) buildInitCmd() error {
+	contentStr := cm.buildInitStr()
+	fName, err := createBashFile("INIT", contentStr)
+	cm.ScriptName = fName
+	if err != nil {
+		log.Fatal(err.Error())
+		return err
+	}
+	cm.Cmd = buildBashCommand(fName)
+	if err != nil {
+		log.Fatal(err.Error())
+		return err
+	}
+	return nil
+}
+
 // CMD defines a async os command
 type CMD struct {
-	Raw			string
-	//Path		string
-	Args		[]string
-	Cmd			*exec.Cmd
-	Status		int // 0 - Error, 1 - Initialized, 2 - Executed, 3 - Finished
+	Type        string
+	ScriptName  string
+	Raw         string
+	Args        []string
+	Cmd         *exec.Cmd
+	Status      int // 0 - Error, 1 - Initialized, 2 - Executed, 3 - Finished
 	OutputBytes []byte
 }
 
@@ -46,19 +131,19 @@ type CMD struct {
 func newCMD(raw string) (*CMD, error) {
 	var cmd CMD
 	cmd.Status = 0
-	//goExe, err := exec.LookPath("go")
-	//if err != nil {
-	//	log.Fatal(err.Error())
-	//	return &cmd, err
-	//}
 	cmd.Raw = raw
-	//cmd.Path = goExe
 	err := cmd.loadArgs()
 	if err != nil {
 		log.Fatal(err.Error())
 		return &cmd, err
 	}
-	err = cmd.buildCmd()
+	if strings.Contains(raw, "#cloud-config") {
+		cmd.Type = "script"
+		err = cmd.buildInitCmd()
+	} else {
+		cmd.Type = "command"
+		err = cmd.buildCmd()
+	}
 	if err != nil {
 		log.Fatal(err.Error())
 		return &cmd, err
@@ -101,12 +186,14 @@ func (cm *CMD) loadArgs() error {
 
 // buildCmd a CMD
 func (cm *CMD) buildCmd() error {
-	fmt.Println("-------COMMAND------")
-	fmt.Println(cm.Args[1:])
-	fmt.Println("------END COMMAND------")
 	cmd := exec.Command(cm.Args[0], cm.Args[1:]...)
 	cm.Cmd = cmd
 	return nil
+}
+
+// cleanScript
+func (cm *CMD) cleanScript() error {
+	return cleanBashFile(cm.ScriptName)
 }
 
 // Execute a CMD
@@ -121,11 +208,22 @@ func (cm *CMD) Execute() error {
 		log.Fatal(err.Error())
 	}
 	err = cm.Cmd.Wait()
+	if err != nil {
+		log.Fatal(err.Error())
+		return err
+	}
 	chkRes := string(dat)
 	chkRes = strings.Replace(chkRes, " ", "", -1)
 	chkRes = strings.Replace(chkRes, "\n", "", -1)
 	chkRes = strings.Replace(chkRes, "\t", "", -1)
-	if chkRes == "[]" {
+	if cm.Type == "script" {
+		time.Sleep(10 * time.Second)
+		err = cm.cleanScript()
+		if err != nil {
+			log.Fatal(err.Error())
+			return err
+		}
+	} else if chkRes == "[]" {
 		dat = []byte("[RETRY]")
 		cm.OutputBytes = dat
 		return nil
@@ -137,10 +235,10 @@ func (cm *CMD) Execute() error {
 
 // Shell wraps around a slice of sh CMD
 type Shell struct {
-	Name		string
-	Type		string
-	Commands	[]*CMD
-	Status		int // 0 - Error, 1 - Initialized, 2 - Executed, 3 - Finished
+	Name     string
+	Type     string
+	Commands []*CMD
+	Status   int // 0 - Error, 1 - Initialized, 2 - Executed, 3 - Finished
 }
 
 // NewShell initializes a new sh Shell
@@ -154,14 +252,13 @@ func NewShell(name string, sType string, commands []string) (*Shell, error) {
 		}
 		sCMDs = append(sCMDs, sCMD)
 	}
-	return &Shell{name, sType,sCMDs, 1}, nil
+	return &Shell{name, sType, sCMDs, 1}, nil
 }
 
 // Execute a Shell
 func (sh *Shell) Execute() error {
 	var err error
-	for ind, cMD :=  range sh.Commands {
-		//time.Sleep(7 * time.Second)
+	for ind, cMD := range sh.Commands {
 		err = cMD.Execute()
 		if err != nil {
 			sh.Status = 0
@@ -174,17 +271,16 @@ func (sh *Shell) Execute() error {
 	return nil
 }
 
-// OutputBytes
+// OutputBytes from Shell Execution
 func (sh *Shell) OutputBytes() [][]byte {
 	var reContents [][]byte
 	for _, cmd := range sh.Commands {
 		reContents = append(reContents, cmd.OutputBytes)
 	}
-
 	return reContents
 }
 
-// Run
+// Run a Shell
 func (sh *Shell) Run() error {
 	if err := sh.Execute(); err != nil {
 		log.Fatal(err.Error())

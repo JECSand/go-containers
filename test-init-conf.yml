@@ -1,17 +1,17 @@
 #cloud-config
 users:
-  - name: tester
-    plain_text_passwd:
-    ssh_pwauth: true
-    lock_passwd: false
-    sudo:
-      - ALL=(ALL) NOPASSWD:ALL
+  - default
+  - name: demo
+    plain_text_passwd: 2weakTestPass1
+    ssh_pwauth: True
+    lock_passwd: False
+    sudo: [ 'ALL=(ALL) NOPASSWD:ALL' ]
     groups: sudo
     shell: /bin/bash
 write_files:
   - path: /etc/ssh/sshd_config
     content: |
-      Port 2222
+      Port 22
       Protocol 2
       UsePrivilegeSeparation yes
       KeyRegenerationInterval 3600
@@ -36,6 +36,6 @@ write_files:
       AcceptEnv LANG LC_*
       Subsystem sftp /usr/lib/openssh/sftp-server
       UsePAM yes
-      AllowUsers tester
+      AllowUsers demo
 runcmd:
   - systemctl restart sshd

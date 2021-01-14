@@ -14,7 +14,6 @@ package containers
 
 import (
 	"errors"
-	"fmt"
 	"golang.org/x/crypto/ssh"
 	"log"
 	"time"
@@ -22,23 +21,23 @@ import (
 
 // Auth
 type Auth struct {
-	User			string
-	Type			string
-	Credential		string
-	SecurityString	string
-	Port			string
+	User           string
+	Type           string
+	Credential     string
+	SecurityString string
+	Port           string
 }
 
 // NewAuth create a pointer to a new Connection
 func NewAuth(name string, cType string, credential string, SecurityString string, port string) *Auth {
-	return &Auth{name, cType,credential, SecurityString,port}
+	return &Auth{name, cType, credential, SecurityString, port}
 }
 
 // Connection
 type Connection struct {
-	Name			string
-	Type			string
-	Port			string
+	Name string
+	Type string
+	Port string
 }
 
 // NewConnection create a pointer to a new Connection
@@ -48,14 +47,14 @@ func NewConnection(name string, cType string, port string) *Connection {
 
 // Network
 type Network struct {
-	PublicIP		string
-	PrivateIP		string
-	HWAddr			string
-	Type			string
-	HostName		string
-	SSL				bool
-	DNS				string
-	Connections		[]*Connection
+	PublicIP    string
+	PrivateIP   string
+	HWAddr      string
+	Type        string
+	HostName    string
+	SSL         bool
+	DNS         string
+	Connections []*Connection
 }
 
 // AddConnection to a Network
@@ -76,7 +75,7 @@ func (n *Network) LoadEntry(nw *NetworkEntry) error {
 
 // SSHClient
 type SSHClient struct {
-	SSHConn			*ssh.Client
+	SSHConn *ssh.Client
 }
 
 // newSSHClient
@@ -96,17 +95,17 @@ func (ssh *SSHClient) Close() error {
 
 // A GoContainer defines the structure of a lxc container
 type GoContainer struct {
-	Name			string
-	Controller		bool
-	SSHClient		*SSHClient
-	Type			string
-	Release			string
-	Services		[]string
-	InitFile      	[]byte
-	Storage			string
-	Network			*Network
-	Auth			*Auth
-	Status			string
+	Name       string
+	Controller bool
+	SSHClient  *SSHClient
+	Type       string
+	Release    string
+	Services   []string
+	InitFile   []byte
+	Storage    string
+	Network    *Network
+	Auth       *Auth
+	Status     string
 }
 
 // NewGoContainer creates a pointer to a new GoContainer
@@ -114,7 +113,7 @@ func NewGoContainer(name string, controller bool, cType string, release string, 
 	if len(initFile) == 0 && auth.Type == "password" {
 		initFile = generateCloudInit(auth)
 	}
-	return &GoContainer{name, controller, &SSHClient{},cType, release, services, initFile, storage, network, auth, "Initializing"}
+	return &GoContainer{name, controller, &SSHClient{}, cType, release, services, initFile, storage, network, auth, "Initializing"}
 }
 
 // OpenSSH begins an SSHClient session
@@ -140,15 +139,10 @@ func (co *GoContainer) OpenSSH() error {
 	}
 	//TODO - Add Functionality to do Private or Public based on IP Type
 	addr := co.Network.PrivateIP + ":" + co.Auth.Port
-	fmt.Println("CHECK CONTAINER IPs: ")
-	fmt.Println(co.Network)
-	fmt.Println("CHECK SSH ADDRESS: ")
-	fmt.Println(addr)
-	fmt.Println("END SSH ADDRESS")
 	config := &ssh.ClientConfig{
 		User: co.Auth.User,
 		Auth: []ssh.AuthMethod{
-			ssh.Password(co.Auth.SecurityString),
+			ssh.Password(co.Auth.Credential),
 		},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
@@ -183,7 +177,6 @@ func (co *GoContainer) Create() error {
 	cmdStr := `lxc launch images:` + co.Type + `/` + co.Release + `/amd64 ` + co.Name
 	if len(co.InitFile) != 0 {
 		cmdStr = `lxc launch ` + co.Type + `: ` + co.Name + ` --config=user.user-data=$("` + string(co.InitFile) + `")$`
-		fmt.Println(cmdStr)
 	}
 	_, err := co.shellCMD(cmdStr)
 	if err != nil {
@@ -194,7 +187,7 @@ func (co *GoContainer) Create() error {
 }
 
 // Delete
-func(co *GoContainer) Delete() error {
+func (co *GoContainer) Delete() error {
 	stopCmdStr := `lxc stop ` + co.Name
 	delCmdStr := `lxc delete ` + co.Name
 	_, err := co.shellCMD(stopCmdStr)
@@ -213,21 +206,12 @@ func(co *GoContainer) Delete() error {
 // loadNetworkData
 func (co *GoContainer) loadNetworkData(networkInt string) error {
 	cmdStr := `lxc network list-leases ` + networkInt + ` --format json`
-	fmt.Println("CHECK NETWORK CMD")
-	fmt.Println(cmdStr)
-	fmt.Println("END NETWORK CMD")
 	oBytes, err := co.shellCMD(cmdStr)
-	fmt.Println("CHECK NETWORK BYTES")
-	fmt.Printf("TYPE: %T", oBytes)
-	fmt.Println(oBytes)
-	fmt.Println("END NETWORK VYTES")
 	if err != nil {
 		log.Fatal(err.Error())
 		return err
 	}
-	fmt.Println("CHECK NETWORK BYTES22")
 	if string(oBytes[0]) == "[RETRY]" {
-		fmt.Println("-======================REST ONE1111==========")
 		time.Sleep(5 * time.Second)
 		oBytes, err = co.shellCMD(cmdStr)
 		if err != nil {
@@ -235,7 +219,6 @@ func (co *GoContainer) loadNetworkData(networkInt string) error {
 			return err
 		} else {
 			if string(oBytes[0]) == "[RETRY]" {
-				fmt.Println("-======================REST TWO222222==========")
 				time.Sleep(5 * time.Second)
 				oBytes, err = co.shellCMD(cmdStr)
 				if err != nil {
@@ -245,10 +228,6 @@ func (co *GoContainer) loadNetworkData(networkInt string) error {
 			}
 		}
 	}
-	fmt.Println("END NETWORK VYTES22")
-	fmt.Println("CHECK NETWORK BYTES33")
-	fmt.Println(oBytes[0])
-	fmt.Println("END NETWORK VYTES33")
 	nwOut, err := LoadNetworkOutput(string(oBytes[0]))
 	if err != nil {
 		log.Fatal(err.Error())
@@ -270,18 +249,18 @@ func (co *GoContainer) loadListOutput(output *ContainerOutput) error {
 
 // A GoCluster is a deployment of GoContainers
 type GoCluster struct {
-	Name			string
-	Type			string
-	ReverseProxy	string
-	LoadBalancer	string
-	Controller		string
-	Containers		[]*GoContainer
-	Network			*Network
+	Name         string
+	Type         string
+	ReverseProxy string
+	LoadBalancer string
+	Controller   string
+	Containers   []*GoContainer
+	Network      *Network
 }
 
 // NewGoCluster creates a pointer to a new GoCluster
 func NewGoCluster(name string, cType string, reverseProxy string, loadBalancer string, controller string) *GoCluster {
-	return &GoCluster{name, cType, reverseProxy, loadBalancer, controller,[]*GoContainer{}, &Network{}}
+	return &GoCluster{name, cType, reverseProxy, loadBalancer, controller, []*GoContainer{}, &Network{}}
 }
 
 // GetContainer gets a single container back from the Cluster with GoContainer name as the filter

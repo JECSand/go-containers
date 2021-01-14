@@ -1,0 +1,22 @@
+language: go
+
+go:
+  - 1.11.x
+  - 1.12.x
+  - 1.13.x
+  - 1.14.x
+
+env:
+  - GO111MODULE=on
+
+before_install:
+  - ./build_lxd.sh
+
+install: true
+
+before_script:
+  - sleep 15
+  - go vet
+
+script:
+  - go test
