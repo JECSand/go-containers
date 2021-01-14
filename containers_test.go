@@ -20,14 +20,15 @@ import (
 
 // TestContainers
 func TestContainers(t *testing.T) {
-	//t.Run("BasicCreate", testBasicCreate)
-	//t.Run("InitCreate", testInitCreate)
-	//t.Run("ClusterScan", testClusterScan)
+	t.Run("BasicCreate", testBasicCreate)
+	t.Run("InitCreate", testInitCreate)
+	t.Run("ClusterScan", testClusterScan)
 	t.Run("InitAuth", testInitAuth)
 }
 
 // testBasicCreate
 func testBasicCreate(t *testing.T) {
+	fmt.Println("<-----------BEGINNING 1: testBasicCreate...")
 	goCluster := NewGoCluster("test", "ubuntu", "xenial", "", "")
 	cAuth := &Auth{}
 	err := goCluster.CreateContainer(cAuth, true, "CreateTest", "ubuntu", "xenial", []byte{})
@@ -38,14 +39,16 @@ func testBasicCreate(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error Deleting Test Container: %v", err)
 	}
+	fmt.Println("<-----------testBasicCreate COMPLETE")
 }
 
 // testInitCreate
 func testInitCreate(t *testing.T) {
+	fmt.Println("<-----------BEGINNING 2: testInitCreate...")
 	username := "tester"
 	password := "l0lThis1sAWeak1"
 	aType := "password"
-	port := "2222"
+	port := "22"
 	dat, err := ioutil.ReadFile("test-init-conf.yml")
 	goCluster := NewGoCluster("test", "ubuntu", "xenial", "", "")
 	cAuth := NewAuth(username, aType, password, "", port)
@@ -54,14 +57,16 @@ func testInitCreate(t *testing.T) {
 		goCluster.DeleteContainer("CreateInitTest")
 		t.Errorf("Error Creating Test Container: %v", err)
 	}
-	//err = goCluster.DeleteContainer("CreateInitTest")
-	//if err != nil {
-	//	t.Errorf("Error Deleting Test Container: %v", err)
-	//}
+	err = goCluster.DeleteContainer("CreateInitTest")
+	if err != nil {
+		t.Errorf("Error Deleting Test Container: %v", err)
+	}
+	fmt.Println("<-----------testInitCreate COMPLETE")
 }
 
 // testClusterScan
 func testClusterScan(t *testing.T) {
+	fmt.Println("<-----------BEGINNING 3: testClusterScan...")
 	goCluster := NewGoCluster("test", "ubuntu", "xenial", "", "")
 	cAuth := &Auth{}
 	err := goCluster.CreateContainer(cAuth, true, "ClusterTest1", "ubuntu", "xenial", []byte{})
@@ -79,14 +84,16 @@ func testClusterScan(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error Deleting Test Container: %v", err)
 	}
+	fmt.Println("<-----------testClusterScan COMPLETE")
 }
 
 // testInitAuth
 func testInitAuth(t *testing.T) {
+	fmt.Println("<-----------BEGINNING 4: testInitAuth...")
 	username := "tester"
 	password := "l0lThis1sAWeak1"
 	aType := "password"
-	port := "2222"
+	port := "22"
 	goCluster := NewGoCluster("test", "ubuntu", "xenial", "", "")
 	cAuth := NewAuth(username, aType, password, "", port)
 	err := goCluster.CreateContainer(cAuth, true, "CreateInitTest", "ubuntu", "xenial", []byte{})
@@ -96,12 +103,6 @@ func testInitAuth(t *testing.T) {
 	}
 	goCon, err := goCluster.GetContainer("CreateInitTest")
 	goCon.Auth = cAuth
-	fmt.Println("===========CHECK GO CLUSTER TEST CONTAINER===========")
-	fmt.Println(goCon)
-	fmt.Println(goCon.Network)
-	fmt.Println(goCon.Network.PrivateIP)
-	fmt.Println(goCon.Network.PublicIP)
-	fmt.Println("===========END GO CLUSTER TEST CONTAINER===========")
 	if err != nil {
 		goCluster.DeleteContainer("CreateInitTest")
 		t.Errorf("Error Deleting Test Container: %v", err)
@@ -120,4 +121,5 @@ func testInitAuth(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error Deleting Test Container: %v", err)
 	}
+	fmt.Println("<-----------testInitAuth COMPLETE")
 }
