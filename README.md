@@ -1,6 +1,6 @@
 # go-containers
 
-A pre-made Golang module for making easy async REST calls.
+A pre-made Golang module for easily spinning up and managing lxd containers and cluster.
 
 [![Build Status](https://travis-ci.org/JECSand/go-containers.svg?branch=main)](https://travis-ci.org/JECSand/go-containers)
 [![Go Report Card](https://goreportcard.com/badge/go-containers.com/JECSand/fetch)](https://goreportcard.com/report/github.com/JECSand/go-containers)
@@ -9,6 +9,7 @@ A pre-made Golang module for making easy async REST calls.
 * License: Apache Version 2.0
 * Version Release Date: 01/13/2021
 * Current Version: 0.0.1
+* Developed for Ubuntu Linux
 
 ## License
 * Copyright 2021 John Connor Sanders
@@ -20,6 +21,13 @@ content of the license.
 ## Installation
 ```bash
 $ go get github.com/JECSand/go-containers
+```
+
+## Dependencies
+####Ensure that LXD is installed and running on your environment
+* Use the provided lxd installer script if needed:
+```bash
+$ . ./build_lxd.sh
 ```
 
 ## Usage Examples
