@@ -2,6 +2,9 @@
 
 A pre-made Golang module for making easy async REST calls.
 
+[![Build Status](https://travis-ci.org/JECSand/go-containers.svg?branch=main)](https://travis-ci.org/JECSand/go-containers)
+[![Go Report Card](https://goreportcard.com/badge/go-containers.com/JECSand/fetch)](https://goreportcard.com/report/github.com/JECSand/go-containers)
+
 * Author(s): John Connor Sanders
 * License: Apache Version 2.0
 * Version Release Date: 01/13/2021
