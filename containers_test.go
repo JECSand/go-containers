@@ -29,7 +29,7 @@ func TestContainers(t *testing.T) {
 // testBasicCreate
 func testBasicCreate(t *testing.T) {
 	fmt.Println("<-----------BEGINNING 1: testBasicCreate...")
-	goCluster := NewGoCluster("test", "ubuntu", "xenial", "", "")
+	goCluster := NewGoCluster("test", "ubuntu", "", "", "")
 	cAuth := &Auth{}
 	err := goCluster.CreateContainer(cAuth, true, "CreateTest", "ubuntu", "xenial", []byte{})
 	if err != nil {
