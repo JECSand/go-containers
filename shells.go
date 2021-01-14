@@ -13,38 +13,54 @@ Copyright 2021 John Connor Sanders
 package containers
 
 import (
-	"bytes"
+	"fmt"
+	"github.com/gofrs/uuid"
+	"io/ioutil"
 	"log"
-	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 )
+
+// GenerateUuid
+func GenerateUuid() (string, error) {
+	uuId, err := uuid.NewV4()
+	if err != nil {
+		log.Fatal(err.Error())
+		return "", err
+	}
+	return uuId.String(), nil
+}
 
 // CMD defines a async os command
 type CMD struct {
 	Raw			string
-	Path		string
+	//Path		string
 	Args		[]string
 	Cmd			*exec.Cmd
 	Status		int // 0 - Error, 1 - Initialized, 2 - Executed, 3 - Finished
-	Output		os.Stdout
-	Error		os.Stdout
+	OutputBytes []byte
 }
 
 // newCMD returns a pointer to a new CMD
 func newCMD(raw string) (*CMD, error) {
 	var cmd CMD
 	cmd.Status = 0
-	goExe, err := exec.LookPath("go")
+	//goExe, err := exec.LookPath("go")
+	//if err != nil {
+	//	log.Fatal(err.Error())
+	//	return &cmd, err
+	//}
+	cmd.Raw = raw
+	//cmd.Path = goExe
+	err := cmd.loadArgs()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(err.Error())
 		return &cmd, err
 	}
-	cmd.Raw = raw
-	cmd.Path = goExe
-	cmd.loadArgs()
 	err = cmd.buildCmd()
 	if err != nil {
+		log.Fatal(err.Error())
 		return &cmd, err
 	}
 	cmd.Status = 1
@@ -52,50 +68,70 @@ func newCMD(raw string) (*CMD, error) {
 }
 
 // loadArgs from cmd.Raw
-func (cm *CMD) loadArgs() {
-	// cm.Raw = "lxc launch ubuntu:CONTAINER --config=user.user-data="$(cat cloud-init-config.yml)"
-	// cm.Raw = "lxc launch images:ubuntu/xenial/amd64 demo"
+func (cm *CMD) loadArgs() error {
+	var subs []string
+	reString := `\$\(\"((?:.*?\r?\n?)*)\"\)\$`
+	regx := regexp.MustCompile(reString)
+	doubleQuotes := regx.FindAll([]byte(cm.Raw), -1)
+	for _, dq := range doubleQuotes {
+		key, err := GenerateUuid()
+		if err != nil {
+			log.Fatal(err.Error())
+			return err
+		}
+		subEnt := key + "|||" + string(dq)
+		if strings.Contains(cm.Raw, string(dq)) {
+			cm.Raw = strings.Replace(cm.Raw, string(dq), key, 1)
+		}
+		subs = append(subs, subEnt)
+	}
 	cm.Args = strings.Split(cm.Raw, " ")
+	for ind, arg := range cm.Args {
+		for _, sub := range subs {
+			sSub := strings.Split(sub, "|||")
+			if strings.Contains(arg, sSub[0]) {
+				nArg := strings.Replace(arg, sSub[0], sSub[1], 1)
+				nArg = strings.Replace(strings.Replace(nArg, `$("`, `"$(`, -1), `")$`, `)"`, -1)
+				cm.Args[ind] = nArg
+			}
+		}
+	}
+	return nil
 }
 
 // buildCmd a CMD
 func (cm *CMD) buildCmd() error {
-	cmd := exec.Command(cm.Args)
+	fmt.Println("-------COMMAND------")
+	fmt.Println(cm.Args[1:])
+	fmt.Println("------END COMMAND------")
+	cmd := exec.Command(cm.Args[0], cm.Args[1:]...)
 	cm.Cmd = cmd
-	stderr, err := cm.Cmd.StderrPipe()
-	if err != nil {
-		log.Fatal(err)
-		return err
-	}
-	cm.Error = stderr
-	stdout, err := cm.Cmd.StdoutPipe()
-	if err != nil {
-		log.Fatal(err)
-		return err
-	}
-	cm.Output = stdout
 	return nil
 }
 
 // Execute a CMD
 func (cm *CMD) Execute() error {
-	if err := cm.Cmd.Start(); err != nil {
-		cm.Status = 0
-		log.Fatal(err)
-		return err
+	stdout, err := cm.Cmd.StdoutPipe()
+	if err != nil {
+		log.Fatal(err.Error())
 	}
+	err = cm.Cmd.Start()
+	dat, err := ioutil.ReadAll(stdout)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+	err = cm.Cmd.Wait()
+	chkRes := string(dat)
+	chkRes = strings.Replace(chkRes, " ", "", -1)
+	chkRes = strings.Replace(chkRes, "\n", "", -1)
+	chkRes = strings.Replace(chkRes, "\t", "", -1)
+	if chkRes == "[]" {
+		dat = []byte("[RETRY]")
+		cm.OutputBytes = dat
+		return nil
+	}
+	cm.OutputBytes = dat
 	cm.Status = 2
-	return nil
-}
-
-// Resolve a CMD
-func (cm *CMD) Resolve() error {
-	if err := cm.Cmd.Wait(); err != nil {
-		cm.Status = 0
-		log.Fatal(err)
-		return err
-	}
-	cm.Status = 3
 	return nil
 }
 
@@ -103,69 +139,56 @@ func (cm *CMD) Resolve() error {
 type Shell struct {
 	Name		string
 	Type		string
-	Env			string
 	Commands	[]*CMD
-	Outputs		[]os.Stdout
-	Errors		[]os.Stdout
 	Status		int // 0 - Error, 1 - Initialized, 2 - Executed, 3 - Finished
 }
 
 // NewShell initializes a new sh Shell
-func NewShell(name string, sType string, env string, commands []string) (*Shell, error) {
+func NewShell(name string, sType string, commands []string) (*Shell, error) {
 	var sCMDs []*CMD
 	for _, command := range commands {
 		sCMD, err := newCMD(command)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatal(err.Error())
 			return &Shell{Status: 0}, err
 		}
 		sCMDs = append(sCMDs, sCMD)
 	}
-	return &Shell{name, sType, env, sCMDs, []os.Stdout{}, []os.Stdout{}, 1}, nil
+	return &Shell{name, sType,sCMDs, 1}, nil
 }
 
 // Execute a Shell
 func (sh *Shell) Execute() error {
 	var err error
 	for ind, cMD :=  range sh.Commands {
+		//time.Sleep(7 * time.Second)
 		err = cMD.Execute()
 		if err != nil {
 			sh.Status = 0
-			log.Fatal(err)
+			log.Fatal(err.Error())
 			return err
 		}
 		sh.Commands[ind] = cMD
-		sh.Outputs = append(sh.Outputs, cMD.Output)
-		sh.Errors = append(sh.Errors, cMD.Error)
 	}
 	sh.Status = 2
 	return nil
 }
 
-// Resolve a Shell
-func (sh *Shell) Resolve() error {
-	var err error
-	for ind, cMD :=  range sh.Commands {
-		err = cMD.Resolve()
-		if err != nil {
-			sh.Status = 0
-			log.Fatal(err)
-			return err
-		}
-		sh.Commands[ind] = cMD
+// OutputBytes
+func (sh *Shell) OutputBytes() [][]byte {
+	var reContents [][]byte
+	for _, cmd := range sh.Commands {
+		reContents = append(reContents, cmd.OutputBytes)
 	}
-	sh.Status = 3
-	return nil
+
+	return reContents
 }
 
-// Error checks a resolved Shell for an errored CMD
-func (sh *Shell) Error() error {
-	for _, err := range sh.Errors {
-		if err != nil {
-			sh.Status = 0
-			log.Fatal(err)
-			return err
-		}
+// Run
+func (sh *Shell) Run() error {
+	if err := sh.Execute(); err != nil {
+		log.Fatal(err.Error())
+		return err
 	}
 	return nil
 }
