@@ -1,4 +1,5 @@
 #!/bin/bash
+sudo apt-get -y update
 sudo snap install core
 sudo snap install lxd
 
