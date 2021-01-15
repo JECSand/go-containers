@@ -1,4 +1,5 @@
 #!/bin/bash
+sudo snap install core
 sudo snap install lxd
 
     cat <<EOF | lxd init --preseed
