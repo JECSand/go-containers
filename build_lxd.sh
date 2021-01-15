@@ -2,7 +2,6 @@
 sudo apt-get -y update && sudo apt-get -y upgrade
 sudo snap install core
 sudo snap install lxd
-sudo apt install -y -t xenial-backports lxd lxd-client
 
     cat <<EOF | lxd init --preseed
 profiles:
