@@ -1,7 +1,4 @@
 #!/bin/bash
-sudo apt-get -y update && sudo apt-get -y upgrade
-sudo snap install core
-sudo snap install lxd
 sudo usermod -aG $USER lxd
 
     cat <<EOF | lxd init --preseed
