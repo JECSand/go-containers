@@ -11,7 +11,7 @@ env:
   - GO111MODULE=on
 
 before_install:
-  - . ./build_lxd.sh
+  - . ./build_test_lxd.sh
 
 install: true
 
