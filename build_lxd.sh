@@ -1,10 +1,4 @@
 #!/bin/bash
-sudo apt-get -y update && sudo apt-get -y upgrade
-sudo snap install core
-sudo snap install lxd
-sudo systemctl stop lxd
-sudo systemctl stop lxd.socket
-sudo systemctl start lxd.socket
 
     cat <<EOF | lxd init --preseed
 profiles:
