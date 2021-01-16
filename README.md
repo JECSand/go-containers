@@ -23,7 +23,9 @@ $ go get github.com/JECSand/go-containers
 ```
 
 ## Dependencies
+
 ###Ensure that LXD is installed and running on your environment
+
 * Use the provided lxd installer script if needed:
 ```bash
 $ . ./build_lxd.sh
