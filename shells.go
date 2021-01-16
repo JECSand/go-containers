@@ -217,7 +217,7 @@ func (cm *CMD) Execute() error {
 	chkRes = strings.Replace(chkRes, "\n", "", -1)
 	chkRes = strings.Replace(chkRes, "\t", "", -1)
 	if cm.Type == "script" {
-		time.Sleep(20 * time.Second)
+		time.Sleep(30 * time.Second)
 		err = cm.cleanScript()
 		if err != nil {
 			log.Fatal(err.Error())
