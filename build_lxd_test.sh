@@ -2,7 +2,6 @@
 sudo apt-get -y update && sudo apt-get -y upgrade
 sudo apt install -y gcc make liblxc1 liblxc-dev lxc-utils pkg-config
 sudo snap install lxd
-sudo usermod -aG lxd $USER
 
     sudo cat <<EOF | sudo lxd init --preseed
 profiles:
@@ -28,5 +27,3 @@ storage_pools:
     config:
       source: ""
 EOF
-
-newgrp lxd
