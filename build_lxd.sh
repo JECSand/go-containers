@@ -1,10 +1,10 @@
 #!/bin/bash
 sudo apt-get -y update && sudo apt-get -y upgrade
-sudo snap install core
+sudo apt install -y gcc make liblxc1 liblxc-dev lxc-utils pkg-config
 sudo snap install lxd
-sudo usermod -aG $USER lxd
+sudo usermod -aG lxd $USER
 
-    cat <<EOF | lxd init --preseed
+    sudo cat <<EOF | sudo lxd init --preseed
 profiles:
   - name: default
     devices:
@@ -28,3 +28,5 @@ storage_pools:
     config:
       source: ""
 EOF
+
+newgrp lxd
