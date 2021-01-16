@@ -14,6 +14,7 @@ package containers
 
 import (
 	"errors"
+	"fmt"
 	"golang.org/x/crypto/ssh"
 	"log"
 	"time"
@@ -87,6 +88,7 @@ func newSSHClient(c *ssh.Client) *SSHClient {
 func (ssh *SSHClient) Close() error {
 	err := ssh.SSHConn.Close()
 	if err != nil {
+		fmt.Println("ERROR: containers.go, line 89: ", err.Error())
 		log.Fatal(err.Error())
 		return err
 	}
@@ -121,19 +123,23 @@ func (co *GoContainer) OpenSSH() error {
 	var conn *ssh.Client
 	var err error
 	if co.Auth.Type == "" {
-		err = errors.New("Error containers.go: No GoContainer Auth Profile has been set for SSH!")
+		err = errors.New("error containers.go: No GoContainer Auth Profile has been set for SSH")
+		fmt.Println("ERROR: containers.go, line 125: ", err.Error())
 		log.Fatal(err.Error())
 		return err
 	} else if co.Auth.Credential == "" {
-		err = errors.New("Error containers.go: No GoContainer Auth Credential has been set for SSH!")
+		err = errors.New("error containers.go: No GoContainer Auth Credential has been set for SSH")
+		fmt.Println("ERROR: containers.go, line 132: ", err.Error())
 		log.Fatal(err.Error())
 		return err
 	} else if co.Auth.User == "" {
-		err = errors.New("Error containers.go: No GoContainer Auth User has been set for SSH!")
+		err = errors.New("error containers.go: No GoContainer Auth User has been set for SSH")
+		fmt.Println("ERROR: containers.go, line 135: ", err.Error())
 		log.Fatal(err.Error())
 		return err
 	} else if co.Auth.Port == "" {
-		err = errors.New("Error containers.go: No GoContainer Auth Port has been set for SSH!")
+		err = errors.New("error containers.go: No GoContainer Auth Port has been set for SSH")
+		fmt.Println("ERROR: containers.go, line 140: ", err.Error())
 		log.Fatal(err.Error())
 		return err
 	}
@@ -149,6 +155,7 @@ func (co *GoContainer) OpenSSH() error {
 	conn, err = ssh.Dial("tcp", addr, config)
 	if err != nil {
 		nErr := errors.New("failed to ssh into container: " + err.Error())
+		fmt.Println("ERROR: containers.go, line 158: ", nErr.Error())
 		log.Fatal(nErr.Error())
 		return nErr
 	}
@@ -162,10 +169,12 @@ func (co *GoContainer) shellCMD(cmdStr string) ([][]byte, error) {
 	commands := []string{cmdStr}
 	newShell, err := NewShell(co.Name, co.Type, commands)
 	if err != nil {
+		fmt.Println("ERROR: containers.go, line 172: ", err.Error())
 		log.Fatal(err.Error())
 		return outBytes, err
 	}
 	if err = newShell.Run(); err != nil {
+		fmt.Println("ERROR: containers.go, line 177: ", err.Error())
 		log.Fatal(err.Error())
 		return outBytes, err
 	}
@@ -180,6 +189,7 @@ func (co *GoContainer) Create() error {
 	}
 	_, err := co.shellCMD(cmdStr)
 	if err != nil {
+		fmt.Println("ERROR: containers.go, line 192: ", err.Error())
 		log.Fatal(err.Error())
 		return err
 	}
@@ -192,11 +202,13 @@ func (co *GoContainer) Delete() error {
 	delCmdStr := `lxc delete ` + co.Name
 	_, err := co.shellCMD(stopCmdStr)
 	if err != nil {
+		fmt.Println("ERROR: containers.go, line 205: ", err.Error())
 		log.Fatal(err.Error())
 		return err
 	}
 	_, err = co.shellCMD(delCmdStr)
 	if err != nil {
+		fmt.Println("ERROR: containers.go, line 211: ", err.Error())
 		log.Fatal(err.Error())
 		return err
 	}
@@ -208,6 +220,7 @@ func (co *GoContainer) loadNetworkData(networkInt string) error {
 	cmdStr := `lxc network list-leases ` + networkInt + ` --format json`
 	oBytes, err := co.shellCMD(cmdStr)
 	if err != nil {
+		fmt.Println("ERROR: containers.go, line 223: ", err.Error())
 		log.Fatal(err.Error())
 		return err
 	}
@@ -215,6 +228,7 @@ func (co *GoContainer) loadNetworkData(networkInt string) error {
 		time.Sleep(5 * time.Second)
 		oBytes, err = co.shellCMD(cmdStr)
 		if err != nil {
+			fmt.Println("ERROR: containers.go, line 231: ", err.Error())
 			log.Fatal(err.Error())
 			return err
 		} else {
@@ -222,6 +236,7 @@ func (co *GoContainer) loadNetworkData(networkInt string) error {
 				time.Sleep(5 * time.Second)
 				oBytes, err = co.shellCMD(cmdStr)
 				if err != nil {
+					fmt.Println("ERROR: containers.go, line 239: ", err.Error())
 					log.Fatal(err.Error())
 					return err
 				}
@@ -230,6 +245,7 @@ func (co *GoContainer) loadNetworkData(networkInt string) error {
 	}
 	nwOut, err := LoadNetworkOutput(string(oBytes[0]))
 	if err != nil {
+		fmt.Println("ERROR: containers.go, line 248: ", err.Error())
 		log.Fatal(err.Error())
 		return err
 	}
@@ -268,15 +284,16 @@ func (cu *GoCluster) GetContainer(cName string) (*GoContainer, error) {
 	var goContainer *GoContainer
 	_, err := cu.Scan()
 	if err != nil {
-		panic(err)
-		//log.Fatal(err.Error())
+		fmt.Println("ERROR: containers.go, line 287: ", err.Error())
+		log.Fatal(err.Error())
 		return goContainer, err
 	}
 	for _, con := range cu.Containers {
 		if con.Name == cName {
 			err = con.loadNetworkData("lxdbr0")
 			if err != nil {
-				panic(err)
+				fmt.Println("ERROR: containers.go, line 295: ", err.Error())
+				log.Fatal(err.Error())
 				return con, err
 			}
 			return con, nil
@@ -290,7 +307,9 @@ func (cu *GoCluster) GetContainers() ([]*GoContainer, error) {
 	for ind, _ := range cu.Containers {
 		err := cu.Containers[ind].loadNetworkData("lxdbr0")
 		if err != nil {
-			panic(err)
+			fmt.Println("ERROR: containers.go, line 310: ", err.Error())
+			log.Fatal(err.Error())
+			return cu.Containers, err
 		}
 	}
 	return cu.Containers, nil
@@ -302,13 +321,13 @@ func (cu *GoCluster) shellCMD(cmdStr string) ([][]byte, error) {
 	commands := []string{cmdStr}
 	newShell, err := NewShell(cu.Name, cu.Type, commands)
 	if err != nil {
-		panic(err)
-		//log.Fatal(err.Error())
+		fmt.Println("ERROR: containers.go, line 324: ", err.Error())
+		log.Fatal(err.Error())
 		return outBytes, err
 	}
 	if err = newShell.Run(); err != nil {
-		panic(err)
-		//log.Fatal(err.Error())
+		fmt.Println("ERROR: containers.go, line 329: ", err.Error())
+		log.Fatal(err.Error())
 		return outBytes, err
 	}
 	return newShell.OutputBytes(), nil
@@ -320,11 +339,13 @@ func (cu *GoCluster) Scan() ([]*GoContainer, error) {
 	cmdStr := `lxc ls --format json`
 	oBytes, err := cu.shellCMD(cmdStr)
 	if err != nil {
+		fmt.Println("ERROR: containers.go, line 342: ", err.Error())
 		log.Fatal(err.Error())
 		return reContains, err
 	}
 	reOuts, err := LoadListOut(string(oBytes[0]))
 	if err != nil {
+		fmt.Println("ERROR: containers.go, line 348: ", err.Error())
 		log.Fatal(err.Error())
 		return reContains, err
 	}
@@ -339,7 +360,9 @@ func (cu *GoCluster) DeleteContainer(cName string) error {
 		if con.Name == cName {
 			err := con.Delete()
 			if err != nil {
-				panic(err)
+				fmt.Println("ERROR: containers.go, line 363: ", err.Error())
+				log.Fatal(err.Error())
+				return err
 			}
 		} else {
 			newContainers = append(newContainers, con)
@@ -354,13 +377,15 @@ func (cu *GoCluster) CreateContainer(auth *Auth, controller bool, name string, c
 	newContainer := NewGoContainer(name, controller, cType, cRelease, []string{}, config, "default", &Network{}, auth)
 	err := newContainer.Create()
 	if err != nil {
-		panic(err)
-		//log.Fatal(err.Error())
+		fmt.Println("ERROR: containers.go, line 380: ", err.Error())
+		log.Fatal(err.Error())
 		return err
 	}
 	err = newContainer.loadNetworkData("lxdbr0")
 	if err != nil {
-		panic(err)
+		fmt.Println("ERROR: containers.go, line 380: ", err.Error())
+		log.Fatal(err.Error())
+		return err
 	}
 	if newContainer.Auth.Type != "" {
 		newConn := NewConnection("auth", "ssh", newContainer.Auth.Port)
