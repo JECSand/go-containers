@@ -268,12 +268,17 @@ func (cu *GoCluster) GetContainer(cName string) (*GoContainer, error) {
 	var goContainer *GoContainer
 	_, err := cu.Scan()
 	if err != nil {
-		log.Fatal(err.Error())
+		panic(err)
+		//log.Fatal(err.Error())
 		return goContainer, err
 	}
 	for _, con := range cu.Containers {
 		if con.Name == cName {
-			con.loadNetworkData("lxdbr0")
+			err = con.loadNetworkData("lxdbr0")
+			if err != nil {
+				panic(err)
+				return con, err
+			}
 			return con, nil
 		}
 	}
@@ -283,7 +288,10 @@ func (cu *GoCluster) GetContainer(cName string) (*GoContainer, error) {
 // GetContainers gets all containers for a given GoCluster
 func (cu *GoCluster) GetContainers() ([]*GoContainer, error) {
 	for ind, _ := range cu.Containers {
-		cu.Containers[ind].loadNetworkData("lxdbr0")
+		err := cu.Containers[ind].loadNetworkData("lxdbr0")
+		if err != nil {
+			panic(err)
+		}
 	}
 	return cu.Containers, nil
 }
@@ -294,11 +302,13 @@ func (cu *GoCluster) shellCMD(cmdStr string) ([][]byte, error) {
 	commands := []string{cmdStr}
 	newShell, err := NewShell(cu.Name, cu.Type, commands)
 	if err != nil {
-		log.Fatal(err.Error())
+		panic(err)
+		//log.Fatal(err.Error())
 		return outBytes, err
 	}
 	if err = newShell.Run(); err != nil {
-		log.Fatal(err.Error())
+		panic(err)
+		//log.Fatal(err.Error())
 		return outBytes, err
 	}
 	return newShell.OutputBytes(), nil
@@ -327,7 +337,10 @@ func (cu *GoCluster) DeleteContainer(cName string) error {
 	var newContainers []*GoContainer
 	for _, con := range cu.Containers {
 		if con.Name == cName {
-			con.Delete()
+			err := con.Delete()
+			if err != nil {
+				panic(err)
+			}
 		} else {
 			newContainers = append(newContainers, con)
 		}
@@ -341,10 +354,14 @@ func (cu *GoCluster) CreateContainer(auth *Auth, controller bool, name string, c
 	newContainer := NewGoContainer(name, controller, cType, cRelease, []string{}, config, "default", &Network{}, auth)
 	err := newContainer.Create()
 	if err != nil {
-		log.Fatal(err.Error())
+		panic(err)
+		//log.Fatal(err.Error())
 		return err
 	}
-	newContainer.loadNetworkData("lxdbr0")
+	err = newContainer.loadNetworkData("lxdbr0")
+	if err != nil {
+		panic(err)
+	}
 	if newContainer.Auth.Type != "" {
 		newConn := NewConnection("auth", "ssh", newContainer.Auth.Port)
 		newContainer.Network.AddConnection(newConn)

@@ -2,9 +2,10 @@
 
 A pre-made Golang module for easily spinning up and managing lxd containers and cluster.
 
+[![Build Status](https://travis-ci.org/JECSand/go-containers.svg?branch=main)](https://travis-ci.org/JECSand/go-containers)
 [![Go Report Card](https://goreportcard.com/badge/github.com/JECSand/go-containers)](https://goreportcard.com/report/github.com/JECSand/go-containers)
 
-* Author(s): John Connor Sanders
+* Author: John Connor Sanders
 * License: Apache Version 2.0
 * Version Release Date: 01/13/2021
 * Current Version: 0.0.1
@@ -125,6 +126,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err.Error())
 	}
+	goCon.Auth = cAuth
 	// #5: Open a SSHClient on your GoContainer
 	err = goCon.OpenSSH()
 	if err != nil {
