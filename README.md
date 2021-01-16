@@ -28,7 +28,66 @@ $ go get github.com/JECSand/go-containers
 ```bash
 $ . ./build_lxd.sh
 ```
-
+________
+## Module Main Data Structs
+1. GoCluster
+```go
+type GoCluster struct {
+	Name         string
+	Type         string
+	ReverseProxy string
+	LoadBalancer string
+	Controller   string
+	Containers   []*GoContainer
+	Network      *Network
+}
+````
+2. Network
+```go
+type Network struct {
+	PublicIP    string
+	PrivateIP   string
+	HWAddr      string
+	Type        string
+	HostName    string
+	SSL         bool
+	DNS         string
+	Connections []*Connection
+}
+````
+3. GoContainer
+```go
+type GoContainer struct {
+	Name       string
+	Controller bool
+	SSHClient  *SSHClient
+	Type       string
+	Release    string
+	Services   []string
+	InitFile   []byte
+	Storage    string
+	Network    *Network
+	Auth       *Auth
+	Status     string
+}
+````
+4. GoContainer.Auth
+```go
+type Auth struct {
+	User           string
+	Type           string
+	Credential     string
+	SecurityString string
+	Port           string
+}
+````
+5. GoContainer.SSHClient
+```go
+type SSHClient struct {
+	SSHConn *ssh.Client
+}
+````
+__________
 ## Usage Examples
 ```go
 package main
