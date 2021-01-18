@@ -24,6 +24,8 @@ func TestContainers(t *testing.T) {
 	t.Run("InitCreate", testInitCreate)
 	t.Run("ClusterScan", testClusterScan)
 	t.Run("InitAuth", testInitAuth)
+	t.Run("testSnapshot", testSnapshot)
+	t.Run("testExport", testExport)
 }
 
 // testBasicCreate
@@ -123,3 +125,59 @@ func testInitAuth(t *testing.T) {
 	}
 	fmt.Println("<-----------testInitAuth COMPLETE")
 }
+
+// testSnapshot
+func testSnapshot(t *testing.T) {
+	fmt.Println("<-----------BEGINNING 5: testSnapshot...")
+	username := "tester"
+	password := "l0lThis1sAWeak1"
+	aType := "password"
+	port := "22"
+	goCluster := NewGoCluster("test", "ubuntu", "xenial", "", "")
+	cAuth := NewAuth(username, aType, password, "", port)
+	err := goCluster.CreateContainer(cAuth, true, "SnapshotTest", "ubuntu", "xenial", []byte{})
+	if err != nil {
+		goCluster.DeleteContainer("SnapshotTest")
+		t.Errorf("Error Creating Test Container: %v", err)
+	}
+	goCon, err := goCluster.GetContainer("CreateInitTest")
+	if err != nil {
+		goCluster.DeleteContainer("CreateInitTest")
+		t.Errorf("Error Deleting Test Container: %v", err)
+	}
+	err = goCon.Snapshot()
+	err = goCluster.DeleteContainer("CreateInitTest")
+	if err != nil {
+		t.Errorf("Error Deleting Test Container: %v", err)
+	}
+	fmt.Println("<-----------testSnapshot COMPLETE")
+}
+
+/*
+// testExport
+func testExport(t *testing.T) {
+	fmt.Println("<-----------BEGINNING 6: testExport...")
+	username := "tester"
+	password := "l0lThis1sAWeak1"
+	aType := "password"
+	port := "22"
+	goCluster := NewGoCluster("test", "ubuntu", "xenial", "", "")
+	cAuth := NewAuth(username, aType, password, "", port)
+	err := goCluster.CreateContainer(cAuth, true, "SnapshotTest", "ubuntu", "xenial", []byte{})
+	if err != nil {
+		goCluster.DeleteContainer("SnapshotTest")
+		t.Errorf("Error Creating Test Container: %v", err)
+	}
+	goCon, err := goCluster.GetContainer("CreateInitTest")
+	if err != nil {
+		goCluster.DeleteContainer("CreateInitTest")
+		t.Errorf("Error Deleting Test Container: %v", err)
+	}
+
+	err = goCluster.DeleteContainer("CreateInitTest")
+	if err != nil {
+		t.Errorf("Error Deleting Test Container: %v", err)
+	}
+	fmt.Println("<-----------testExport COMPLETE")
+}
+*/
