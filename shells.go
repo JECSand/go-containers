@@ -1,8 +1,8 @@
 /*
 Author: John Connor Sanders
 License: Apache Version 2.0
-Version: 0.0.1
-Released: 01/13/2021
+Version: 0.0.2
+Released: 01/18/2021
 Copyright 2021 John Connor Sanders
 
 -*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
@@ -13,108 +13,16 @@ Copyright 2021 John Connor Sanders
 package containers
 
 import (
-	"github.com/gofrs/uuid"
+	"bytes"
+	"fmt"
 	"io/ioutil"
 	"log"
-	"os"
 	"os/exec"
 	"regexp"
 	"strings"
-	"time"
 )
 
-// GenerateUuid
-func GenerateUuid() (string, error) {
-	uuId, err := uuid.NewV4()
-	if err != nil {
-		log.Fatal(err.Error())
-		return "", err
-	}
-	return uuId.String(), nil
-}
-
-// createYMLDirs
-func createYMLDirs() error {
-	_, err := os.Stat("inits")
-	if os.IsNotExist(err) {
-		errDir := os.MkdirAll("inits", 0755)
-		if errDir != nil {
-			log.Fatal(errDir.Error())
-			return errDir
-		}
-	}
-	return nil
-}
-
-// cleanBashFile
-func cleanBashFile(fName string) error {
-	err := os.Remove(fName)
-	if err != nil {
-		log.Fatal(err.Error())
-		return err
-	}
-	return nil
-}
-
-// createBashFile
-func createBashFile(fType string, contents string) (string, error) {
-	err := createYMLDirs()
-	if err != nil {
-		log.Fatal(err.Error())
-		return "", err
-	}
-	fName, err := GenerateUuid()
-	if err != nil {
-		log.Fatal(err.Error())
-		return fName, err
-	}
-	if fType == "INIT" {
-		fName = "inits/" + fName + ".sh"
-	}
-	f, err := os.Create(fName)
-	if err != nil {
-		log.Fatal(err.Error())
-		return fName, nil
-	}
-	defer f.Close()
-	_, err = f.WriteString(contents)
-	if err != nil {
-		log.Fatal(err.Error())
-		return fName, nil
-	}
-	return fName, nil
-}
-
-// buildBashCommand
-func buildBashCommand(fName string) *exec.Cmd {
-	return exec.Command("/bin/sh", fName)
-}
-
-// buildInitStr
-func (cm *CMD) buildInitStr() string {
-	initStr := ""
-	for _, c := range cm.Args {
-		initStr = initStr + " " + c
-	}
-	return initStr
-}
-
-// buildInitCmd
-func (cm *CMD) buildInitCmd() error {
-	contentStr := cm.buildInitStr()
-	fName, err := createBashFile("INIT", contentStr)
-	cm.ScriptName = fName
-	if err != nil {
-		log.Fatal(err.Error())
-		return err
-	}
-	cm.Cmd = buildBashCommand(fName)
-	if err != nil {
-		log.Fatal(err.Error())
-		return err
-	}
-	return nil
-}
+const ShellToUse = "bash"
 
 // CMD defines a async os command
 type CMD struct {
@@ -152,6 +60,32 @@ func newCMD(raw string) (*CMD, error) {
 	return &cmd, nil
 }
 
+// buildInitStr
+func (cm *CMD) buildInitStr() string {
+	initStr := ""
+	for _, c := range cm.Args {
+		initStr = initStr + " " + c
+	}
+	return initStr
+}
+
+// buildInitCmd
+func (cm *CMD) buildInitCmd() error {
+	contentStr := cm.buildInitStr()
+	fName, err := createBashFile("INIT", contentStr)
+	cm.ScriptName = fName
+	if err != nil {
+		log.Fatal(err.Error())
+		return err
+	}
+	cm.Cmd = buildBashCommand(fName)
+	if err != nil {
+		log.Fatal(err.Error())
+		return err
+	}
+	return nil
+}
+
 // loadArgs from cmd.Raw
 func (cm *CMD) loadArgs() error {
 	var subs []string
@@ -159,7 +93,7 @@ func (cm *CMD) loadArgs() error {
 	regx := regexp.MustCompile(reString)
 	doubleQuotes := regx.FindAll([]byte(cm.Raw), -1)
 	for _, dq := range doubleQuotes {
-		key, err := GenerateUuid()
+		key, err := generateUuid()
 		if err != nil {
 			log.Fatal(err.Error())
 			return err
@@ -193,7 +127,7 @@ func (cm *CMD) buildCmd() error {
 
 // cleanScript
 func (cm *CMD) cleanScript() error {
-	return cleanBashFile(cm.ScriptName)
+	return deleteFile(cm.ScriptName)
 }
 
 // Execute a CMD
@@ -217,7 +151,7 @@ func (cm *CMD) Execute() error {
 	chkRes = strings.Replace(chkRes, "\n", "", -1)
 	chkRes = strings.Replace(chkRes, "\t", "", -1)
 	if cm.Type == "script" {
-		time.Sleep(30 * time.Second)
+		//time.Sleep(30 * time.Second)
 		err = cm.cleanScript()
 		if err != nil {
 			log.Fatal(err.Error())
@@ -287,4 +221,33 @@ func (sh *Shell) Run() error {
 		return err
 	}
 	return nil
+}
+
+// SHELL executes a unix shell Cmd
+func SHELL(name string, sType string, cmdStr string) ([][]byte, error) {
+	var outBytes [][]byte
+	commands := []string{cmdStr}
+	newShell, err := NewShell(name, sType, commands)
+	if err != nil {
+		fmt.Println("ERROR: shells.go, line 230: ", err.Error())
+		log.Fatal(err.Error())
+		return outBytes, err
+	}
+	if err = newShell.Run(); err != nil {
+		fmt.Println("ERROR: shells.go, line 236: ", err.Error())
+		log.Fatal(err.Error())
+		return outBytes, err
+	}
+	return newShell.OutputBytes(), nil
+}
+
+// BASH
+func BASH(command string) ([]byte, []byte, error) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd := exec.Command(ShellToUse, "-c", command)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	return stdout.Bytes(), stderr.Bytes(), err
 }
