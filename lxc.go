@@ -1,8 +1,8 @@
 /*
 Author: John Connor Sanders
 License: Apache Version 2.0
-Version: 0.0.1
-Released: 01/13/2021
+Version: 0.0.2
+Released: 01/18/2021
 Copyright 2021 John Connor Sanders
 
 -*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
@@ -148,8 +148,8 @@ func (lo *ListOutput) GetContainers() []*GoContainer {
 	var containers []*GoContainer
 	for _, out := range lo.Outputs {
 		var container GoContainer
-		container.loadListOutput(&out)
-		container.loadNetworkData("lxdbr0")
+		_ = container.loadListOutput(&out)
+		_ = container.loadNetworkData("lxdbr0")
 		containers = append(containers, &container)
 	}
 	return containers
@@ -186,9 +186,53 @@ func (nwo *NetworkOutput) GetContainerEntry(containerName string) *Network {
 	var reNetwork Network
 	for _, nw := range nwo.NetworkEntries {
 		if nw.Hostname == containerName {
-			reNetwork.LoadEntry(&nw)
+			_ = reNetwork.LoadEntry(&nw)
 			return &reNetwork
 		}
 	}
 	return &reNetwork
+}
+
+// ImageProperties
+type ImageProperties struct {
+	Architecture string `json:"architecture,omitempty"`
+	OSType       string `json:"os,omitempty"`
+	OSRelease    string `json:"os_release,omitempty"`
+}
+
+// ImageOutput
+type ImageOutput struct {
+	Public      bool            `json:"public,omitempty"`
+	Props       ImageProperties `json:"properties,omitempty"`
+	Filename    string          `json:"filename,omitempty"`
+	Fingerprint string          `json:"fingerprint,omitempty"`
+	Size        int             `json:"size,omitempty"`
+	Type        string          `json:"type,omitempty"`
+	Created     string          `json:"created_at,omitempty"`
+}
+
+// ImagesOutput
+type ImagesOutput struct {
+	Outputs []ImageOutput `json:"output,omitempty"`
+}
+
+// LoadImagesOutput
+func LoadImagesOutput(jsonStr string) *ImagesOutput {
+	var imagesOutput ImagesOutput
+	if err := json.Unmarshal([]byte(jsonStr), &imagesOutput); err != nil {
+		log.Fatal(err.Error())
+		return &imagesOutput
+	}
+	return &imagesOutput
+}
+
+// GetImages
+func (imo *ImagesOutput) GetImages() []*GoImage {
+	var reImgs []*GoImage
+	for _, imgOut := range imo.Outputs {
+		name := strings.Replace(imgOut.Filename, ".tar.xz", "", 1)
+		newImg := NewGoImage(name, imgOut.Type, imgOut.Fingerprint, imgOut.Created)
+		reImgs = append(reImgs, newImg)
+	}
+	return reImgs
 }

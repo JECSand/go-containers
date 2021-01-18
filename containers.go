@@ -1,8 +1,8 @@
 /*
 Author: John Connor Sanders
 License: Apache Version 2.0
-Version: 0.0.1
-Released: 01/13/2021
+Version: 0.0.2
+Released: 01/18/2021
 Copyright 2021 John Connor Sanders
 
 -*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"golang.org/x/crypto/ssh"
 	"log"
+	"os"
+	"strings"
 	"time"
 )
 
@@ -89,7 +91,7 @@ func newSSHClient(c *ssh.Client) *SSHClient {
 func (ssh *SSHClient) Close() error {
 	err := ssh.SSHConn.Close()
 	if err != nil {
-		fmt.Println("ERROR: containers.go, line 89: ", err.Error())
+		fmt.Println("ERROR: containers.go, line 92: ", err.Error())
 		log.Fatal(err.Error())
 		return err
 	}
@@ -98,39 +100,153 @@ func (ssh *SSHClient) Close() error {
 
 // GoSnapshot
 type GoSnapshot struct {
-	Name		string
-	DateTime	string
-	Container   string
+	Name     string
+	DateTime string
 }
 
 // NewGoSnapshot
-func NewGoSnapshot(name string, dt string, conName string) *GoSnapshot {
+func NewGoSnapshot(name string, dt string) *GoSnapshot {
 	return &GoSnapshot{
-		Name: name,
+		Name:     name,
 		DateTime: dt,
-		Container: conName,
 	}
 }
 
-// Delete
-func (sn *GoSnapshot) Delete() {
-	cmd := ``
+// GoImage
+type GoImage struct {
+	Name        string
+	Type        string
+	Fingerprint string
+	TarMeta     []string
+	Contents    [][]byte
+	DateTime    string
+}
+
+// NewGoImage
+func NewGoImage(name string, iType string, fingerprint string, dt string) *GoImage {
+	return &GoImage{
+		Name:        name,
+		Type:        iType,
+		Fingerprint: fingerprint,
+		TarMeta:     []string{},
+		Contents:    [][]byte{},
+		DateTime:    dt,
+	}
+}
+
+// shellCMD executes a unix shell GoImage Cmd
+func (im *GoImage) shellCMD(cmdStr string) ([][]byte, error) {
+	return SHELL(im.Name, im.Type, cmdStr)
+}
+
+// loadNewOutput
+func (im *GoImage) loadNewOutput(out []byte) {
+	im.Fingerprint = "unknown"
+	if bytes.Contains(out, []byte(" fingerprint: ")) {
+		sOut := bytes.Split(out, []byte(" fingerprint: "))[1]
+		sOut = bytes.Trim(sOut, "\n")
+		im.Fingerprint = string(sOut)
+	}
+}
+
+// Import a GoImage
+func (im *GoImage) Import() error {
+	cmdStr := `lxc image import `
+	var importFiles []string
+	jobId, err := createJobDirectory("imports")
+	if err != nil {
+		fmt.Println("ERROR: containers.go, line 156: ", err.Error())
+		log.Fatal(err.Error())
+		return err
+	}
+	pwd, err := os.Getwd()
+	if err != nil {
+		fmt.Println("ERROR: containers.go, line 162: ", err.Error())
+		log.Fatal(err.Error())
+		return err
+	}
+	importDir := pwd + `/imports/` + jobId
+	for ind, fName := range im.TarMeta {
+		iName := importDir + "/" + fName
+		fContents := im.Contents[ind]
+		err = createFile(iName, fContents)
+		if err != nil {
+			fmt.Println("ERROR: containers.go, line 172: ", err.Error())
+			log.Fatal(err.Error())
+			return err
+		}
+		importFiles = append(importFiles, iName)
+	}
+	cmdStr = cmdStr + importFiles[0] + ` --alias ` + im.Name
+	_, err = im.shellCMD(cmdStr)
+	if err != nil {
+		fmt.Println("ERROR: containers.go, line 281: ", err.Error())
+		log.Fatal(err.Error())
+		return err
+	}
+	err = deleteJobDirectory("imports", jobId)
+	if err != nil {
+		fmt.Println("ERROR: containers.go, line 187: ", err.Error())
+		log.Fatal(err.Error())
+		return err
+	}
+	return nil
+}
+
+// Export a GoImage
+func (im *GoImage) Export() error {
+	cmdStr := `lxc image export ` + im.Name
+	jobId, err := createJobDirectory("exports")
+	if err != nil {
+		fmt.Println("ERROR: containers.go, line 193: ", err.Error())
+		log.Fatal(err.Error())
+		return err
+	}
+	pwd, err := os.Getwd()
+	if err != nil {
+		fmt.Println("ERROR: containers.go, line 199: ", err.Error())
+		log.Fatal(err.Error())
+		return err
+	}
+	exportDir := pwd + `/exports/` + jobId
+	cmdStr = cmdStr + ` ` + exportDir
+	_, err = im.shellCMD(cmdStr)
+	if err != nil {
+		fmt.Println("ERROR: containers.go, line 207: ", err.Error())
+		log.Fatal(err.Error())
+		return err
+	}
+	jobContents, jobMeta, err := scanJobDirectory("exports", jobId)
+	if err != nil {
+		fmt.Println("ERROR: containers.go, line 213: ", err.Error())
+		log.Fatal(err.Error())
+		return err
+	}
+	im.TarMeta = jobMeta
+	im.Contents = jobContents
+	err = deleteJobDirectory("exports", jobId)
+	if err != nil {
+		fmt.Println("ERROR: containers.go, line 221: ", err.Error())
+		log.Fatal(err.Error())
+		return err
+	}
+	return nil
 }
 
 // A GoContainer defines the structure of a lxc container
 type GoContainer struct {
-	Name		string
-	Controller	bool
-	SSHClient	*SSHClient
-	Type		string
-	Release		string
-	Services	[]string
-	InitFile	[]byte
-	Storage		string
-	Network		*Network
-	Auth		*Auth
-	GoSnapshots	[]*GoSnapshot
-	Status		string
+	Name        string
+	Controller  bool
+	SSHClient   *SSHClient
+	Type        string
+	Release     string
+	Services    []string
+	InitFile    []byte
+	Storage     string
+	Network     *Network
+	Auth        *Auth
+	GoSnapshots []*GoSnapshot
+	Status      string
 }
 
 // NewGoContainer creates a pointer to a new GoContainer
@@ -161,25 +277,32 @@ func (co *GoContainer) OpenSSH() error {
 	var err error
 	if co.Auth.Type == "" {
 		err = errors.New("error containers.go: No GoContainer Auth Profile has been set for SSH")
-		fmt.Println("ERROR: containers.go, line 125: ", err.Error())
+		fmt.Println("ERROR: containers.go, line 272: ", err.Error())
 		log.Fatal(err.Error())
 		return err
 	} else if co.Auth.Credential == "" {
 		err = errors.New("error containers.go: No GoContainer Auth Credential has been set for SSH")
-		fmt.Println("ERROR: containers.go, line 132: ", err.Error())
+		fmt.Println("ERROR: containers.go, line 277: ", err.Error())
 		log.Fatal(err.Error())
 		return err
 	} else if co.Auth.User == "" {
 		err = errors.New("error containers.go: No GoContainer Auth User has been set for SSH")
-		fmt.Println("ERROR: containers.go, line 135: ", err.Error())
+		fmt.Println("ERROR: containers.go, line 282: ", err.Error())
 		log.Fatal(err.Error())
 		return err
 	} else if co.Auth.Port == "" {
 		err = errors.New("error containers.go: No GoContainer Auth Port has been set for SSH")
-		fmt.Println("ERROR: containers.go, line 140: ", err.Error())
+		fmt.Println("ERROR: containers.go, line 287: ", err.Error())
 		log.Fatal(err.Error())
 		return err
 	}
+	sshKeygenCMD := `ssh-keygen -R `
+	if co.Auth.Port != "22" {
+		sshKeygenCMD = sshKeygenCMD + `[` + co.Network.PrivateIP + `]:` + co.Auth.Port
+	} else {
+		sshKeygenCMD = sshKeygenCMD + co.Network.PrivateIP
+	}
+	_, _, _ = BASH(sshKeygenCMD)
 	//TODO - Add Functionality to do Private or Public based on IP Type
 	addr := co.Network.PrivateIP + ":" + co.Auth.Port
 	config := &ssh.ClientConfig{
@@ -192,7 +315,7 @@ func (co *GoContainer) OpenSSH() error {
 	conn, err = ssh.Dial("tcp", addr, config)
 	if err != nil {
 		nErr := errors.New("failed to ssh into container: " + err.Error())
-		fmt.Println("ERROR: containers.go, line 158: ", nErr.Error())
+		fmt.Println("ERROR: containers.go, line 302: ", nErr.Error())
 		log.Fatal(nErr.Error())
 		return nErr
 	}
@@ -200,22 +323,63 @@ func (co *GoContainer) OpenSSH() error {
 	return nil
 }
 
-// shellCMD
+// shellCMD executes a unix shell Cmd
 func (co *GoContainer) shellCMD(cmdStr string) ([][]byte, error) {
-	var outBytes [][]byte
-	commands := []string{cmdStr}
-	newShell, err := NewShell(co.Name, co.Type, commands)
+	return SHELL(co.Name, co.Type, cmdStr)
+}
+
+// ensure that a container is done booting before continuing
+func (co *GoContainer) ensure() error {
+	chkCmd := `systemctl is-system-running`
+	for i := 0; i < 36; i++ {
+		out, err := co.CMD(chkCmd, "", false)
+		if err != nil {
+			fmt.Println("ERROR: containers.go, line 322: ", err.Error())
+			log.Fatal(err.Error())
+			return err
+		}
+		if strings.Contains(string(out), "running") {
+			return nil
+		} else if strings.Contains(string(out), "degraded") {
+			resetCmd := `systemctl reset-failed`
+			_, _ = co.CMD(resetCmd, "", false)
+		}
+		time.Sleep(5 * time.Second)
+	}
+	errStr := "Error: in containers.go, line 321: " + co.Name + " is not starting in a timely manner!"
+	fmt.Println(errStr)
+	return errors.New(errStr)
+}
+
+// CMD executes a command on a GoContainer
+func (co *GoContainer) CMD(cmd string, userName string, reErr bool) ([]byte, error) {
+	cmdStr := `lxc exec ` + co.Name + ` `
+	xFlag := 0
+	if userName != "" {
+		cmdStr = cmdStr + ` -- sudo --login --user ` + userName + ` bash -ilc "`
+		xFlag = 1
+	} else if strings.Contains(cmd, " && ") || strings.Contains(cmd, " ; ") {
+		cmdStr = cmdStr + ` -- sudo bash -ilc "`
+		xFlag = 1
+	}
+	cmdStr = cmdStr + cmd
+	if xFlag == 1 {
+		cmdStr = cmdStr + `"`
+	}
+	out, errOut, err := BASH(cmdStr)
 	if err != nil {
-		fmt.Println("ERROR: containers.go, line 172: ", err.Error())
-		log.Fatal(err.Error())
-		return outBytes, err
+		if reErr {
+			fmt.Println("ERROR: containers.go, line 356: ", err.Error())
+			log.Fatal(err.Error())
+			return []byte{}, err
+		}
 	}
-	if err = newShell.Run(); err != nil {
-		fmt.Println("ERROR: containers.go, line 177: ", err.Error())
-		log.Fatal(err.Error())
-		return outBytes, err
+	if string(errOut) != "" {
+		if reErr {
+			return out, errors.New(string(errOut))
+		}
 	}
-	return newShell.OutputBytes(), nil
+	return out, nil
 }
 
 // Create a new GoContainer
@@ -226,7 +390,13 @@ func (co *GoContainer) Create() error {
 	}
 	_, err := co.shellCMD(cmdStr)
 	if err != nil {
-		fmt.Println("ERROR: containers.go, line 192: ", err.Error())
+		fmt.Println("ERROR: containers.go, line 378: ", err.Error())
+		log.Fatal(err.Error())
+		return err
+	}
+	err = co.ensure()
+	if err != nil {
+		fmt.Println("ERROR: containers.go, line 384: ", err.Error())
 		log.Fatal(err.Error())
 		return err
 	}
@@ -239,13 +409,13 @@ func (co *GoContainer) Delete() error {
 	delCmdStr := `lxc delete ` + co.Name
 	_, err := co.shellCMD(stopCmdStr)
 	if err != nil {
-		fmt.Println("ERROR: containers.go, line 205: ", err.Error())
+		fmt.Println("ERROR: containers.go, line 397: ", err.Error())
 		log.Fatal(err.Error())
 		return err
 	}
 	_, err = co.shellCMD(delCmdStr)
 	if err != nil {
-		fmt.Println("ERROR: containers.go, line 211: ", err.Error())
+		fmt.Println("ERROR: containers.go, line 403: ", err.Error())
 		log.Fatal(err.Error())
 		return err
 	}
@@ -267,51 +437,61 @@ func (co *GoContainer) loadSnapshots() error {
 	cmdStr := `lxc info ` + co.Name
 	oBytes, err := co.shellCMD(cmdStr)
 	if err != nil {
-		fmt.Println("ERROR: containers.go, line 273: ", err.Error())
+		fmt.Println("ERROR: containers.go, line 425: ", err.Error())
 		log.Fatal(err.Error())
 		return err
 	}
-	outSnaps := bytes.Split(bytes.Split(oBytes[0], []byte("Snapshots:"))[1], []byte("\n"))
-	for _, outSnap := range outSnaps {
-		outSnap = bytes.Split(outSnap, []byte(" ("))[0]
-		outSnap = bytes.Replace(outSnap, []byte(" "), []byte(""), -1)
-		outSnap = bytes.Replace(outSnap, []byte("\t"), []byte(""), -1)
-		sSnap := bytes.Split(outSnap, []byte("-snap-"))
-		ss := NewGoSnapshot(string(outSnap), string(sSnap[1]))
-		if co.checkSnapshots(ss) {
-			co.GoSnapshots = append(co.GoSnapshots, ss)
+	if bytes.Contains(oBytes[0], []byte("Snapshots:\n")) {
+		outSnaps := bytes.Split(bytes.Split(oBytes[0], []byte("Snapshots:\n"))[1], []byte("\n"))
+		for _, outSnap := range outSnaps {
+			if bytes.Contains(outSnap, []byte("-snap-")) {
+				outSnap = bytes.Split(outSnap, []byte(" ("))[0]
+				outSnap = bytes.Replace(outSnap, []byte(" "), []byte(""), -1)
+				outSnap = bytes.Replace(outSnap, []byte("\t"), []byte(""), -1)
+				sSnap := bytes.Split(outSnap, []byte("-snap-"))
+				ss := NewGoSnapshot(string(outSnap), string(sSnap[1]))
+				if co.checkSnapshots(ss) {
+					co.GoSnapshots = append(co.GoSnapshots, ss)
+				}
+			}
 		}
 	}
 	return nil
 }
 
 // CreateSnapshot
-func (co *GoContainer) CreateSnapshot() error {
+func (co *GoContainer) CreateSnapshot() (string, error) {
 	ts := getTimeStamp()
 	snapName := co.Name + "-snap-" + ts
-	newSnap := NewGoSnapshot(co.Name, ts)
+	newSnap := NewGoSnapshot(snapName, ts)
 	cmdStr := `lxc snapshot ` + co.Name + ` ` + snapName
 	_, err := co.shellCMD(cmdStr)
 	if err != nil {
-		fmt.Println("ERROR: containers.go, line 258: ", err.Error())
+		fmt.Println("ERROR: containers.go, line 455: ", err.Error())
 		log.Fatal(err.Error())
-		return err
+		return snapName, err
 	}
 	co.GoSnapshots = append(co.GoSnapshots, newSnap)
-	return nil
+	return snapName, nil
 }
 
 // DeleteSnapshot
-// lxc delete {container}/snapshot-name}
 func (co *GoContainer) DeleteSnapshot(snapName string) error {
-
+	cmdStr := `lxc delete ` + co.Name + `/` + snapName
+	_, err := co.shellCMD(cmdStr)
+	if err != nil {
+		fmt.Println("ERROR: containers.go, line 468: ", err.Error())
+		log.Fatal(err.Error())
+		return err
+	}
+	return nil
 }
 
 // GetSnapshots
 func (co *GoContainer) GetSnapshots() ([]*GoSnapshot, error) {
 	err := co.loadSnapshots()
 	if err != nil {
-		fmt.Println("ERROR: containers.go, line 273: ", err.Error())
+		fmt.Println("ERROR: containers.go, line 479: ", err.Error())
 		log.Fatal(err.Error())
 		return co.GoSnapshots, err
 	}
@@ -323,40 +503,77 @@ func (co *GoContainer) Restore(snapName string) error {
 	cmdStr := `lxc restore ` + co.Name + ` ` + snapName
 	_, err := co.shellCMD(cmdStr)
 	if err != nil {
-		fmt.Println("ERROR: containers.go, line 273: ", err.Error())
+		fmt.Println("ERROR: containers.go, line 491: ", err.Error())
 		log.Fatal(err.Error())
 		return err
 	}
 	return nil
 }
 
-// Export container to a tarball
-/*
-
-lxc publish CONTAINER_NAME/SNAPSHOT_NAME --alias my-export
-lxc image export my-export .
-lxc publish --force container_name --alias image_name
- */
-func (co *GoContainer) Export() error {
-	stopCmdStr := `lxc stop ` + co.Name
-	delCmdStr := `lxc delete ` + co.Name
-	_, err := co.shellCMD(stopCmdStr)
-	if err != nil {
-		fmt.Println("ERROR: containers.go, line 205: ", err.Error())
-		log.Fatal(err.Error())
-		return err
+// Image of the GoContainer
+func (co *GoContainer) Image(snapShot string) (*GoImage, error) {
+	var reImg GoImage
+	ts := getTimeStamp()
+	imgName := co.Name + "-image-"
+	cmdStr := `lxc publish ` + co.Name
+	reImg.Type = "Container"
+	if snapShot != "" {
+		reImg.Type = "Snapshot"
+		cmdStr = cmdStr + `/` + snapShot
+		imgName = imgName + "-snap-"
 	}
-	_, err = co.shellCMD(delCmdStr)
+	imgName = imgName + ts
+	cmdStr = cmdStr + ` --alias ` + imgName
+	reImg.Name = imgName
+	out, err := co.shellCMD(cmdStr)
 	if err != nil {
-		fmt.Println("ERROR: containers.go, line 211: ", err.Error())
+		fmt.Println("ERROR: containers.go, line 516: ", err.Error())
 		log.Fatal(err.Error())
-		return err
+		return &reImg, err
 	}
-	return nil
+	reImg.loadNewOutput(out[0])
+	return &reImg, nil
 }
 
-// Import
-func (co *GoContainer) Import() error {
+// Export a GoContainer from the GoCluster
+func (co *GoContainer) Export() (*GoImage, error) {
+	var exImage *GoImage
+	imageSnap, err := co.CreateSnapshot()
+	if err != nil {
+		fmt.Println("ERROR: containers.go, line 529: ", err.Error())
+		log.Fatal(err.Error())
+		return exImage, err
+	}
+	exImage, err = co.Image(imageSnap)
+	if err != nil {
+		fmt.Println("ERROR: containers.go, line 535: ", err.Error())
+		log.Fatal(err.Error())
+		return exImage, err
+	}
+	err = exImage.Export()
+	if err != nil {
+		fmt.Println("ERROR: containers.go, line 541: ", err.Error())
+		log.Fatal(err.Error())
+		return exImage, err
+	}
+	return exImage, nil
+}
+
+// Import a GoContainer into the GoCluster
+func (co *GoContainer) Import(image *GoImage) error {
+	cmdStr := `lxc launch ` + image.Name + ` ` + co.Name
+	err := image.Import()
+	if err != nil {
+		fmt.Println("ERROR: containers.go, line 553: ", err.Error())
+		log.Fatal(err.Error())
+		return err
+	}
+	_, err = co.shellCMD(cmdStr)
+	if err != nil {
+		fmt.Println("ERROR: containers.go, line 559: ", err.Error())
+		log.Fatal(err.Error())
+		return err
+	}
 	return nil
 }
 
@@ -365,7 +582,7 @@ func (co *GoContainer) loadNetworkData(networkInt string) error {
 	cmdStr := `lxc network list-leases ` + networkInt + ` --format json`
 	oBytes, err := co.shellCMD(cmdStr)
 	if err != nil {
-		fmt.Println("ERROR: containers.go, line 223: ", err.Error())
+		fmt.Println("ERROR: containers.go, line 571: ", err.Error())
 		log.Fatal(err.Error())
 		return err
 	}
@@ -373,7 +590,7 @@ func (co *GoContainer) loadNetworkData(networkInt string) error {
 		time.Sleep(5 * time.Second)
 		oBytes, err = co.shellCMD(cmdStr)
 		if err != nil {
-			fmt.Println("ERROR: containers.go, line 231: ", err.Error())
+			fmt.Println("ERROR: containers.go, line 579: ", err.Error())
 			log.Fatal(err.Error())
 			return err
 		} else {
@@ -381,7 +598,7 @@ func (co *GoContainer) loadNetworkData(networkInt string) error {
 				time.Sleep(5 * time.Second)
 				oBytes, err = co.shellCMD(cmdStr)
 				if err != nil {
-					fmt.Println("ERROR: containers.go, line 239: ", err.Error())
+					fmt.Println("ERROR: containers.go, line 587: ", err.Error())
 					log.Fatal(err.Error())
 					return err
 				}
@@ -390,7 +607,7 @@ func (co *GoContainer) loadNetworkData(networkInt string) error {
 	}
 	nwOut, err := LoadNetworkOutput(string(oBytes[0]))
 	if err != nil {
-		fmt.Println("ERROR: containers.go, line 248: ", err.Error())
+		fmt.Println("ERROR: containers.go, line 596: ", err.Error())
 		log.Fatal(err.Error())
 		return err
 	}
@@ -416,20 +633,124 @@ type GoCluster struct {
 	LoadBalancer string
 	Controller   string
 	Containers   []*GoContainer
+	Images       []*GoImage
 	Network      *Network
 }
 
 // NewGoCluster creates a pointer to a new GoCluster
 func NewGoCluster(name string, cType string, reverseProxy string, loadBalancer string, controller string) *GoCluster {
-	return &GoCluster{name, cType, reverseProxy, loadBalancer, controller, []*GoContainer{}, &Network{}}
+	var imgs []*GoImage
+	var containers []*GoContainer
+	return &GoCluster{
+		name,
+		cType,
+		reverseProxy,
+		loadBalancer,
+		controller,
+		containers,
+		imgs,
+		&Network{},
+	}
 }
 
-// GetContainer gets a single container back from the Cluster with GoContainer name as the filter
+// shellCMD executes a unix shell Cmd
+func (cu *GoCluster) shellCMD(cmdStr string) ([][]byte, error) {
+	return SHELL(cu.Name, cu.Type, cmdStr)
+}
+
+// ScanImages from a GoCluster
+func (cu *GoCluster) ScanImages() ([]*GoImage, error) {
+	cmdStr := `lxc image list --format json`
+	oBytes, err := cu.shellCMD(cmdStr)
+	if err != nil {
+		fmt.Println("ERROR: containers.go, line 652: ", err.Error())
+		log.Fatal(err.Error())
+		return cu.Images, err
+	}
+	outImgs := LoadImagesOutput(string(oBytes[0]))
+	cu.Images = outImgs.GetImages()
+	return cu.Images, nil
+}
+
+// CreateImage an image of a GoCluster's GoContainer
+func (cu *GoCluster) CreateImage(cName string, sName string) error {
+	container, err := cu.GetContainer(cName)
+	if err != nil {
+		fmt.Println("ERROR: containers.go, line 665: ", err.Error())
+		log.Fatal(err.Error())
+		return err
+	}
+	exImage, err := container.Image(sName)
+	if err != nil {
+		fmt.Println("ERROR: containers.go, line 671: ", err.Error())
+		log.Fatal(err.Error())
+		return err
+	}
+	cu.Images = append(cu.Images, exImage)
+	return nil
+}
+
+// DeleteImage an Image from the GoCluster
+func (cu *GoCluster) DeleteImage(fingerprint string) error {
+	cmdStr := `lxc image delete ` + fingerprint
+	_, err := cu.shellCMD(cmdStr)
+	if err != nil {
+		fmt.Println("ERROR: containers.go, line 684: ", err.Error())
+		log.Fatal(err.Error())
+		return err
+	}
+	return nil
+}
+
+// ExportContainer from the GoCluster
+func (cu *GoCluster) ExportContainer(cName string) (*GoImage, error) {
+	var exImage *GoImage
+	container, err := cu.GetContainer(cName)
+	if err != nil {
+		fmt.Println("ERROR: containers.go, line 696: ", err.Error())
+		log.Fatal(err.Error())
+		return exImage, err
+	}
+	exImage, err = container.Export()
+	if err != nil {
+		fmt.Println("ERROR: containers.go, line 702: ", err.Error())
+		log.Fatal(err.Error())
+		return exImage, err
+	}
+	err = cu.DeleteImage(exImage.Fingerprint)
+	if err != nil {
+		fmt.Println("ERROR: containers.go, line 708: ", err.Error())
+		log.Fatal(err.Error())
+		return exImage, err
+	}
+	return exImage, nil
+}
+
+// ImportContainer into the GoCluster
+func (cu *GoCluster) ImportContainer(containerName string, image *GoImage) (*GoContainer, error) {
+	var newCon GoContainer
+	newCon.Name = containerName
+	err := newCon.Import(image)
+	if err != nil {
+		fmt.Println("ERROR: containers.go, line 721: ", err.Error())
+		log.Fatal(err.Error())
+		return &newCon, err
+	}
+	err = cu.DeleteImage(image.Name)
+	if err != nil {
+		fmt.Println("ERROR: containers.go, line 727: ", err.Error())
+		log.Fatal(err.Error())
+		return &newCon, err
+	}
+	return cu.GetContainer(newCon.Name)
+}
+
+// GetContainer gets a single container back from the GoCluster with GoContainer name as the filter
 func (cu *GoCluster) GetContainer(cName string) (*GoContainer, error) {
 	var goContainer *GoContainer
 	_, err := cu.Scan()
 	if err != nil {
-		fmt.Println("ERROR: containers.go, line 287: ", err.Error())
+		fmt.Println("ERROR: containers.go, line 739: ", err.Error())
 		log.Fatal(err.Error())
 		return goContainer, err
 	}
@@ -437,7 +758,7 @@ func (cu *GoCluster) GetContainer(cName string) (*GoContainer, error) {
 		if con.Name == cName {
 			err = con.loadNetworkData("lxdbr0")
 			if err != nil {
-				fmt.Println("ERROR: containers.go, line 295: ", err.Error())
+				fmt.Println("ERROR: containers.go, line 747: ", err.Error())
 				log.Fatal(err.Error())
 				return con, err
 			}
@@ -452,7 +773,7 @@ func (cu *GoCluster) GetContainers() ([]*GoContainer, error) {
 	for ind, _ := range cu.Containers {
 		err := cu.Containers[ind].loadNetworkData("lxdbr0")
 		if err != nil {
-			fmt.Println("ERROR: containers.go, line 310: ", err.Error())
+			fmt.Println("ERROR: containers.go, line 762: ", err.Error())
 			log.Fatal(err.Error())
 			return cu.Containers, err
 		}
@@ -460,37 +781,19 @@ func (cu *GoCluster) GetContainers() ([]*GoContainer, error) {
 	return cu.Containers, nil
 }
 
-// shellCMD executes a unix shell Cmd
-func (cu *GoCluster) shellCMD(cmdStr string) ([][]byte, error) {
-	var outBytes [][]byte
-	commands := []string{cmdStr}
-	newShell, err := NewShell(cu.Name, cu.Type, commands)
-	if err != nil {
-		fmt.Println("ERROR: containers.go, line 324: ", err.Error())
-		log.Fatal(err.Error())
-		return outBytes, err
-	}
-	if err = newShell.Run(); err != nil {
-		fmt.Println("ERROR: containers.go, line 329: ", err.Error())
-		log.Fatal(err.Error())
-		return outBytes, err
-	}
-	return newShell.OutputBytes(), nil
-}
-
-// Scan gets all containers for a given cluster
+// Scan gets each GoContainer in a given GoCluster
 func (cu *GoCluster) Scan() ([]*GoContainer, error) {
 	var reContains []*GoContainer
 	cmdStr := `lxc ls --format json`
 	oBytes, err := cu.shellCMD(cmdStr)
 	if err != nil {
-		fmt.Println("ERROR: containers.go, line 342: ", err.Error())
+		fmt.Println("ERROR: containers.go, line 776: ", err.Error())
 		log.Fatal(err.Error())
 		return reContains, err
 	}
 	reOuts, err := LoadListOut(string(oBytes[0]))
 	if err != nil {
-		fmt.Println("ERROR: containers.go, line 348: ", err.Error())
+		fmt.Println("ERROR: containers.go, line 782: ", err.Error())
 		log.Fatal(err.Error())
 		return reContains, err
 	}
@@ -498,14 +801,14 @@ func (cu *GoCluster) Scan() ([]*GoContainer, error) {
 	return cu.Containers, nil
 }
 
-// DeleteContainer deleted the container whose name is inputted
+// DeleteContainer deletes the GoContainer whose name is inputted
 func (cu *GoCluster) DeleteContainer(cName string) error {
 	var newContainers []*GoContainer
 	for _, con := range cu.Containers {
 		if con.Name == cName {
 			err := con.Delete()
 			if err != nil {
-				fmt.Println("ERROR: containers.go, line 363: ", err.Error())
+				fmt.Println("ERROR: containers.go, line 797: ", err.Error())
 				log.Fatal(err.Error())
 				return err
 			}
@@ -517,18 +820,18 @@ func (cu *GoCluster) DeleteContainer(cName string) error {
 	return nil
 }
 
-// CreateContainer create a new container
+// CreateContainer create a new GoContainer in the GoCluster
 func (cu *GoCluster) CreateContainer(auth *Auth, controller bool, name string, cType string, cRelease string, config []byte) error {
 	newContainer := NewGoContainer(name, controller, cType, cRelease, []string{}, config, "default", &Network{}, auth)
 	err := newContainer.Create()
 	if err != nil {
-		fmt.Println("ERROR: containers.go, line 380: ", err.Error())
+		fmt.Println("ERROR: containers.go, line 815: ", err.Error())
 		log.Fatal(err.Error())
 		return err
 	}
 	err = newContainer.loadNetworkData("lxdbr0")
 	if err != nil {
-		fmt.Println("ERROR: containers.go, line 380: ", err.Error())
+		fmt.Println("ERROR: containers.go, line 820: ", err.Error())
 		log.Fatal(err.Error())
 		return err
 	}
