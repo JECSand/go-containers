@@ -1,8 +1,8 @@
 /*
 Author: John Connor Sanders
 License: Apache Version 2.0
-Version: 0.0.2
-Released: 01/18/2021
+Version: 0.0.3
+Released: 04/18/2021
 Copyright 2021 John Connor Sanders
 
 -*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
