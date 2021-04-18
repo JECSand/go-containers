@@ -6,8 +6,8 @@ A pre-made Golang module for easily spinning up and managing lxd containers and 
 
 * Author: John Connor Sanders
 * License: Apache Version 2.0
-* Version Release Date: 01/18/2021
-* Current Version: 0.0.2
+* Version Release Date: 04/18/2021
+* Current Version: 0.0.3
 * Developed for Ubuntu 20.x
 
 ## License
@@ -32,7 +32,7 @@ $ . ./build_lxd.sh
 ```
 ________
 ## Module Main Data Structs
-1. GoCluster
+###1. GoCluster
 ```go
 type GoCluster struct {
     Name         string
@@ -45,7 +45,60 @@ type GoCluster struct {
     Network      *Network
 }
 ```
-2. Network
+
+- ###GoCluster Methods
+
+    I.  *Scan()*
+    ```go
+    func (gc *GoCluster) Scan() ([]*GoContainers, error)
+    ```
+
+    II.  *CreateContainer()*
+    ```go
+    func (gc *GoCluster) CreateContainer(auth *Auth, controller bool, name string, cType string, cRelease string, config []byte) error
+    ```
+  
+    III. *GetContainers()*
+    ```go
+    func (gc *GoCluster) GetContainers() ([]*GoContainer, error)
+    ```
+  
+    IV.  *GetContainer()*
+    ```go
+    func (gc *GoCluster) GetContainer(containerName string) (*GoContainer, error)
+    ```
+
+    V.  *DeleteContainer()*
+    ```go
+    func (gc *GoCluster) DeleteContainer(containerName string) error
+    ```
+  
+    VI. *ExportContainer()*
+    ```go
+    func (gc *GoCluster) ExportContainer(containerName string) (*GoImage, error)
+    ```
+
+    VII. *ImportContainer()*
+    ```go
+    func (gc *GoCluster) ImportContainer(containerName string, image *GoImage) (*GoContainer, error)
+    ```
+  
+    VIII. *ScanImages()*
+    ```go
+    func (gc *GoCluster) ScanImages() ([]*GoImage, error)
+    ```
+  
+    IX. *CreateImage()*
+    ```go
+    func (gc *GoCluster) CreateImage(containerName string, sName string) error 
+    ```
+  
+    X. *DeleteImage()*
+    ```go
+    func (gc *GoCluster) DeleteImage(fingerprint string) error
+    ```
+
+###2. Network
 ```go
 type Network struct {
     PublicIP    string
@@ -58,7 +111,7 @@ type Network struct {
     Connections []*Connection
 }
 ```
-3. GoContainer
+###3. GoContainer
 ```go
 type GoContainer struct {
     Name        string
@@ -75,7 +128,76 @@ type GoContainer struct {
     Status      string
 }
 ```
-4. GoContainer.Auth
+
+- ###GoContainer Methods
+
+  I.  *Create()*
+    ```go
+    func (c *GoContainer) Create() error
+    ```
+
+  II.  *Stop()*
+    ```go
+    func (c *GoContainer) Stop() error
+    ```
+
+  II.  *Boot()*
+    ```go
+    func (c *GoContainer) Boot() error
+    ```
+
+  III.  *Reboot()*
+    ```go
+    func (c *GoContainer) Reboot() error
+    ```
+
+  IV.  *Delete()*
+    ```go
+    func (c *GoContainer) Delete() error
+    ```
+
+  V.  *CreateSnapshot()*
+    ```go
+    func (c *GoContainer) CreateSnapshot() (string, error)
+    ```
+
+  VI.  *GetSnapshots()*
+    ```go
+    func (c *GoContainer) GetSnapshots() ([]*GoSnapshot, error) 
+    ```
+
+  VII.  *Restore()*
+    ```go
+    func (c *GoContainer) Restore(snapshotName string) error
+    ```
+
+  VIII.  *Image()*
+    ```go
+    func (c *GoContainer) Image(snapshotName string) (*GoImage, error) 
+    ```
+
+  IX.  *Export()*
+    ```go
+    func (c *GoContainer) Export() (*GoImage, error) 
+    ```
+  
+  X.  *Import()*
+    ```go
+    func (c *GoContainer) Import(image *GoImage) error
+    ```
+
+  XI.  *CMD()*
+    ```go
+    func (c *GoContainer) CMD(cmd string, userName string, reErr bool) ([]byte, error)
+    ```
+  
+  XII.  *OpenSSH()*
+    ```go
+    func (c *GoContainer) OpenSSH() error 
+    ```
+
+
+###4. GoContainer.Auth
 ```go
 type Auth struct {
     User           string
@@ -85,20 +207,29 @@ type Auth struct {
     Port           string
 }
 ```
-5. GoContainer.GoSnapshot
+
+###5. GoContainer.GoSnapshot
 ```go
 type GoSnapshot struct {
     Name       string
     DateTime   string
 }
 ```
-6. GoContainer.SSHClient
+###6. GoContainer.SSHClient
 ```go
 type SSHClient struct {
     SSHConn   *ssh.Client
 }
 ```
-7. GoImage
+
+- ###SSHClient Methods
+
+  I.  *Close()*
+    ```go
+    func (ssh *SSHClient) Close() error
+    ```
+  
+###7. GoImage
 ```go
 type GoImage struct {
     Name        string
@@ -109,6 +240,19 @@ type GoImage struct {
     DateTime    string
 }
 ```
+
+- ###GoImage Methods
+
+  I.  *Import()*
+    ```go
+    func (im *GoImage) Import() error
+    ```
+
+  II.  *Export()*
+    ```go
+    func (im *GoImage) Export() error
+    ```
+  
 __________
 ## Usage Examples
 ```go

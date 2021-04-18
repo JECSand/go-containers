@@ -1,8 +1,8 @@
 /*
 Author: John Connor Sanders
 License: Apache Version 2.0
-Version: 0.0.2
-Released: 01/18/2021
+Version: 0.0.3
+Released: 04/18/2021
 Copyright 2021 John Connor Sanders
 
 -*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
@@ -180,7 +180,28 @@ func testContainerCMD(t *testing.T) {
 		t.Errorf("Error Deleting CMD Container: %v", err)
 	}
 	/*=============================TEST-1===============================*/
-	fmt.Println("----------->BEGINNING 4.A: Basic Command...")
+	fmt.Println("----------->BEGINNING 4.A: Stop, Boot, and Reboot...")
+	err = goCon.Stop()
+	if err != nil {
+		fmt.Println("Error Stopping Test CMD Container: ", err.Error())
+		_ = goCluster.DeleteContainer("CMDTest")
+		t.Errorf("Error Stopping CMD Container: %v", err)
+	}
+	err = goCon.Boot()
+	if err != nil {
+		fmt.Println("Error Booting Test CMD Container: ", err.Error())
+		_ = goCluster.DeleteContainer("CMDTest")
+		t.Errorf("Error Booting CMD Container: %v", err)
+	}
+	err = goCon.Reboot()
+	if err != nil {
+		fmt.Println("Error Rebooting Test CMD Container: ", err.Error())
+		_ = goCluster.DeleteContainer("CMDTest")
+		t.Errorf("Error Rebooting CMD Container: %v", err)
+	}
+	fmt.Println("----------->PASSED 4.A: Shutdown, Boot, and Reboot...")
+	/*=============================TEST-2===============================*/
+	fmt.Println("----------->BEGINNING 4.B: Basic Command...")
 	output, err := goCon.CMD("pwd", "", true)
 	if err != nil {
 		fmt.Println("Error Executing Test CMD 1: ", err.Error())
@@ -191,9 +212,9 @@ func testContainerCMD(t *testing.T) {
 		_ = goCluster.DeleteContainer("CMDTest")
 		t.Errorf("Error COMMAND TEST 1")
 	}
-	fmt.Println("----------->PASSED 4.A: Basic Command...")
-	/*=============================TEST-2===============================*/
-	fmt.Println("----------->BEGINNING 4.B: Double Command...")
+	fmt.Println("----------->PASSED 4.B: Basic Command...")
+	/*=============================TEST-3===============================*/
+	fmt.Println("----------->BEGINNING 4.C: Double Command...")
 	output, err = goCon.CMD("cd /home/ && pwd", "", false)
 	if err != nil {
 		fmt.Println("Error Executing Test CMD: ", err.Error())
@@ -204,9 +225,9 @@ func testContainerCMD(t *testing.T) {
 		_ = goCluster.DeleteContainer("CMDTest")
 		t.Errorf("Error COMMAND TEST 2")
 	}
-	fmt.Println("----------->PASSED 4.B: Double Command...")
-	/*=============================TEST-3===============================*/
-	fmt.Println("----------->BEGINNING 4.C: Login User Command...")
+	fmt.Println("----------->PASSED 4.C: Double Command...")
+	/*=============================TEST-4===============================*/
+	fmt.Println("----------->BEGINNING 4.D: Login User Command...")
 	output, err = goCon.CMD("cd ~ && pwd", "ubuntu", false)
 	if err != nil {
 		fmt.Println("Error Executing Test CMD: ", err.Error())
@@ -217,7 +238,7 @@ func testContainerCMD(t *testing.T) {
 		_ = goCluster.DeleteContainer("CMDTest")
 		t.Errorf("Error COMMAND TEST 3")
 	}
-	fmt.Println("----------->PASSED 4.C:  Login User Command...")
+	fmt.Println("----------->PASSED 4.D:  Login User Command...")
 	err = goCluster.DeleteContainer("CMDTest")
 	if err != nil {
 		fmt.Println("Error Deleting Test CMD Container: ", err.Error())

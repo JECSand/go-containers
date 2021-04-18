@@ -1,8 +1,8 @@
 /*
 Author: John Connor Sanders
 License: Apache Version 2.0
-Version: 0.0.2
-Released: 01/18/2021
+Version: 0.0.3
+Released: 04/18/2021
 Copyright 2021 John Connor Sanders
 
 -*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
@@ -23,7 +23,7 @@ import (
 	"time"
 )
 
-// Auth
+// Auth stores auth information for a GoContainer's user
 type Auth struct {
 	User           string
 	Type           string
@@ -37,7 +37,7 @@ func NewAuth(name string, cType string, credential string, SecurityString string
 	return &Auth{name, cType, credential, SecurityString, port}
 }
 
-// Connection
+// Connection stores info relating to externally connecting to a GoContainer
 type Connection struct {
 	Name string
 	Type string
@@ -49,7 +49,7 @@ func NewConnection(name string, cType string, port string) *Connection {
 	return &Connection{name, cType, port}
 }
 
-// Network
+// Network stores the network info for a GoContainer
 type Network struct {
 	PublicIP    string
 	PrivateIP   string
@@ -66,7 +66,7 @@ func (n *Network) AddConnection(conn *Connection) {
 	n.Connections = append(n.Connections, conn)
 }
 
-// LoadEntry
+// LoadEntry loads a lxc data into a pointer to NetworkEntry struct
 func (n *Network) LoadEntry(nw *NetworkEntry) error {
 	n.PublicIP = ""
 	n.HostName = nw.Hostname
@@ -77,7 +77,7 @@ func (n *Network) LoadEntry(nw *NetworkEntry) error {
 	return nil
 }
 
-// SSHClient
+// SSHClient stores a pointer to a GoContainer ssh.Client
 type SSHClient struct {
 	SSHConn *ssh.Client
 }
@@ -98,13 +98,13 @@ func (ssh *SSHClient) Close() error {
 	return nil
 }
 
-// GoSnapshot
+// GoSnapshot represents a GoContainer's snapshot
 type GoSnapshot struct {
 	Name     string
 	DateTime string
 }
 
-// NewGoSnapshot
+// NewGoSnapshot loads a GoSnapshot
 func NewGoSnapshot(name string, dt string) *GoSnapshot {
 	return &GoSnapshot{
 		Name:     name,
@@ -112,7 +112,7 @@ func NewGoSnapshot(name string, dt string) *GoSnapshot {
 	}
 }
 
-// GoImage
+// GoImage represents a GoImage of a GoContainer stored in the cluster
 type GoImage struct {
 	Name        string
 	Type        string
@@ -122,7 +122,7 @@ type GoImage struct {
 	DateTime    string
 }
 
-// NewGoImage
+// NewGoImage loads a new GoImage
 func NewGoImage(name string, iType string, fingerprint string, dt string) *GoImage {
 	return &GoImage{
 		Name:        name,
@@ -403,7 +403,43 @@ func (co *GoContainer) Create() error {
 	return nil
 }
 
-// Delete
+// Stop shutdowns a GoContainer
+func (co *GoContainer) Stop() error {
+	stopCmdStr := `lxc stop ` + co.Name
+	_, err := co.shellCMD(stopCmdStr)
+	if err != nil {
+		fmt.Println("ERROR: containers.go, line 397: ", err.Error())
+		log.Fatal(err.Error())
+		return err
+	}
+	return nil
+}
+
+// Boot boots an offline GoContainer
+func (co *GoContainer) Boot() error {
+	stopCmdStr := `lxc start ` + co.Name
+	_, err := co.shellCMD(stopCmdStr)
+	if err != nil {
+		fmt.Println("ERROR: containers.go, line 397: ", err.Error())
+		log.Fatal(err.Error())
+		return err
+	}
+	return nil
+}
+
+// Reboot Stops then Boots an online GoContainer
+func (co *GoContainer) Reboot() error {
+	stopCmdStr := `lxc restart ` + co.Name
+	_, err := co.shellCMD(stopCmdStr)
+	if err != nil {
+		fmt.Println("ERROR: containers.go, line 397: ", err.Error())
+		log.Fatal(err.Error())
+		return err
+	}
+	return nil
+}
+
+// Delete an existing GoContainer from the GoCluster
 func (co *GoContainer) Delete() error {
 	stopCmdStr := `lxc stop ` + co.Name
 	delCmdStr := `lxc delete ` + co.Name
@@ -459,7 +495,7 @@ func (co *GoContainer) loadSnapshots() error {
 	return nil
 }
 
-// CreateSnapshot
+// CreateSnapshot creates a new GoSnapshot off an existing GoContainer
 func (co *GoContainer) CreateSnapshot() (string, error) {
 	ts := getTimeStamp()
 	snapName := co.Name + "-snap-" + ts
@@ -475,7 +511,7 @@ func (co *GoContainer) CreateSnapshot() (string, error) {
 	return snapName, nil
 }
 
-// DeleteSnapshot
+// DeleteSnapshot deletes a GoSnapshot
 func (co *GoContainer) DeleteSnapshot(snapName string) error {
 	cmdStr := `lxc delete ` + co.Name + `/` + snapName
 	_, err := co.shellCMD(cmdStr)
@@ -487,7 +523,7 @@ func (co *GoContainer) DeleteSnapshot(snapName string) error {
 	return nil
 }
 
-// GetSnapshots
+// GetSnapshots for all containers
 func (co *GoContainer) GetSnapshots() ([]*GoSnapshot, error) {
 	err := co.loadSnapshots()
 	if err != nil {
