@@ -1,6 +1,6 @@
 # go-containers
 
-A pre-made Golang module for easily spinning up and managing lxd containers and cluster.
+A pre-made Golang module for easily spinning up and managing lxd containers.
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/JECSand/go-containers)](https://goreportcard.com/report/github.com/JECSand/go-containers)
 
